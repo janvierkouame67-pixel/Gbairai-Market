@@ -815,5 +815,6 @@ document.addEventListener('submit',e=>{
 window.addEventListener('hashchange',()=>{ui.confirm=null;ui.taille=null;document.getElementById('layer').innerHTML='';render();});
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
+window.GB={S:S,shopById:shopById,prodById:prodById};
 loadAll().then(()=>render());
 })();
