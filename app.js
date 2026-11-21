@@ -601,6 +601,7 @@ function render(keep){
   else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
+  if(h.startsWith('produit-')||h==='panier'||h.startsWith('suivi-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
   const y=window.scrollY;app.innerHTML=html+nav(h);
   if(keep&&lastHash===h)window.scrollTo(0,y);else window.scrollTo(0,0);lastHash=h;
