@@ -220,3 +220,9 @@ create policy "photos: suppression" on storage.objects for delete to authenticat
 -- Pour devenir administrateur : après avoir créé votre compte dans l'appli,
 -- remplacez le numéro puis lancez :
 -- update public.profiles set role = 'admin' where phone = '2250700000000';
+
+-- Accès de l'API (les nouveaux projets Supabase ne le donnent plus automatiquement).
+-- Les règles RLS ci-dessus restent la vraie protection.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to anon, authenticated;
+grant execute on all functions in schema public to anon, authenticated;
