@@ -1,6 +1,6 @@
 # Gbairai Market
 
-Plateforme des petites boutiques d'Abidjan : chaque vendeur a son lien de boutique, les clients remplissent un panier et commandent directement sur WhatsApp ou Telegram.
+Plateforme des petites boutiques de Côte d'Ivoire : chaque vendeur a son lien de boutique, les clients remplissent un panier et commandent directement sur WhatsApp ou Telegram.
 
 - **Clients** : accueil (recherche, quartiers, catégories), page boutique, page produit, panier → WhatsApp/Telegram.
 - **Vendeurs** : création de boutique avec numéro + mot de passe, produits (photo, description, tailles, stock), stock, caisse (recettes et dépenses), commandes à confirmer, réglages, image pour le statut.

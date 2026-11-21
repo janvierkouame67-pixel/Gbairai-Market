@@ -5,6 +5,7 @@ const URL_SB = process.env.SUPABASE_URL || 'https://wrowhozasjjszslrttts.supabas
 const KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_Zd44JPlJpkZFi7q_LLD-Mg_MjAI3YE1';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const place = s => { const q = (s.quartier || '').trim(), v = (s.ville || '').trim(); return q && v && q.toLowerCase() !== v.toLowerCase() ? q + ', ' + v : (q || v || "Côte d'Ivoire"); };
 const fmt = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 async function get(path) {
@@ -17,25 +18,25 @@ module.exports = async (req, res) => {
   const q = req.query || {};
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'gbairai-market.vercel.app';
   const base = 'https://' + host;
-  let title = 'Gbairai Market', desc = "Toutes les boutiques d'Abidjan au même endroit. Commandez directement sur WhatsApp.";
+  let title = 'Gbairai Market', desc = "Toutes les boutiques de Côte d'Ivoire au même endroit. Commandez directement sur WhatsApp.";
   let image = base + '/og.jpg', target = '/', url = base;
   try {
     if (q.b && /^[a-z0-9-]{1,80}$/.test(q.b)) {
       target = '/#boutique-' + q.b; url = base + '/b/' + q.b;
-      const [s] = await get('shops?select=id,nom,description,quartier,logo,verification&statut=eq.actif&slug=eq.' + q.b + '&limit=1');
+      const [s] = await get('shops?select=id,nom,description,quartier,ville,logo,verification&statut=eq.actif&slug=eq.' + q.b + '&limit=1');
       if (s) {
         const prods = await get('products?select=photo&visible=eq.true&photo=not.is.null&shop_id=eq.' + s.id + '&order=created_at.desc&limit=1');
         title = s.nom + (s.verification === 'verifie' ? ' ✅' : '') + ' · Gbairai Market';
-        desc = (s.description ? s.description + ' · ' : '') + '📍 ' + (s.quartier || 'Abidjan') + ' · Commande directe sur WhatsApp';
+        desc = (s.description ? s.description + ' · ' : '') + '📍 ' + place(s) + ' · Commande directe sur WhatsApp';
         image = (prods[0] && prods[0].photo) || s.logo || image;
       }
     } else if (q.p && /^[0-9a-f-]{36}$/i.test(q.p)) {
       target = '/#produit-' + q.p; url = base + '/p/' + q.p;
       const [p] = await get('products?select=nom,prix,description,photo,stock,shop_id&visible=eq.true&id=eq.' + q.p + '&limit=1');
       if (p) {
-        const [s] = await get('shops?select=nom,quartier&id=eq.' + p.shop_id + '&limit=1');
+        const [s] = await get('shops?select=nom,quartier,ville&id=eq.' + p.shop_id + '&limit=1');
         title = p.nom + ' · ' + fmt(p.prix) + ' FCFA';
-        desc = (s ? '🏪 ' + s.nom + ' · ' + s.quartier + ' — ' : '') + (p.description || 'Commandez directement sur WhatsApp.');
+        desc = (s ? '🏪 ' + s.nom + ' · ' + place(s) + ' — ' : '') + (p.description || 'Commandez directement sur WhatsApp.');
         if (p.photo) image = p.photo;
       }
     }
