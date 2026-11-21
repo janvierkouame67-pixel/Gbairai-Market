@@ -201,7 +201,7 @@ function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
   const cats=(S.settings.categories||[]).map((c,i)=>'<button type="button" class="cat'+(ui.cat===c.id?' on':'')+'" data-a="cat" data-id="'+esc(c.id)+'"><span class="cat-ico" style="background:linear-gradient(145deg,'+pal(i)[0]+','+pal(i)[1]+');box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 5px 0 '+pal(i)[2]+'">'+ic(ICON[c.id]?c.id:'autre',26,'#fff',2)+'</span>'+esc(c.nom)+'</button>').join('');
-  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a></div></div>'+
+  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
   '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
@@ -582,10 +582,11 @@ function aParams(){
 
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
+  if(isAdmin()&&h==='vendeur')h='admin';
   const base=h.startsWith('boutique-')||h.startsWith('produit-')||h==='favoris'?'accueil':h.startsWith('suivi-')?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
-  return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+it('vendeur','Vendeur','user')+(isAdmin()?it('admin','Admin','shield'):'')+'</nav>';
+  return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
 }
 let lastHash=null;
 function render(keep){
@@ -597,7 +598,7 @@ function render(keep){
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
   else if(h.startsWith('suivi-'))html=vSuivi(h.slice(6));
-  else if(h==='vendeur')html=vVendeur();
+  else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
