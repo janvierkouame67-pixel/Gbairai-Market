@@ -18,6 +18,9 @@ const ICON={
   tel:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>',
   chaussures:'<path d="M3 16v-4l5-1 3 3 6 1a3 3 0 0 1 3 3v1H3z"/>',
   maison:'<path d="M4 11h16M6 11l1 9h10l1-9M9 11V7a3 3 0 0 1 6 0v4"/>',
+  sacs:'<path d="M6 9h12l-1 11H7L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/><path d="M9 13h6"/>',
+  bijoux:'<path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18M9 4l3 16 3-16"/>',
+  electronique:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
   autre:'<path d="M5 8h14l-1.2 12H6.2L5 8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
   bag:'<path d="M5 8h14l-1.2 12H6.2L5 8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
@@ -112,10 +115,10 @@ async function act(fn,okMsg){
 
 /* ---------- PIECES ---------- */
 function tile(p,h,iconSize){
-  const inner=p.photo?'<img src="'+esc(p.photo)+'" alt="" loading="lazy">':ic(ICON[p.categorie]?p.categorie:'autre',iconSize||54,'#fff',1.6);
+  const inner=p.photo?'<img src="'+esc(p.photo)+'" alt="" loading="lazy" onerror="this.remove()">':ic(ICON[p.categorie]?p.categorie:'autre',iconSize||54,'#fff',1.6);
   return '<div class="tile" style="height:'+h+'px;background:'+grad(p.couleur)+'">'+inner+'</div>';
 }
-function avatar(s,size){return '<div class="avatar" style="background:'+lin(s.couleur)+(size?';width:'+size+'px;height:'+size+'px':'')+'">'+esc(initials(s.nom))+'</div>';}
+function avatar(s,size){return '<div class="avatar'+(s.logo?' has-logo':'')+'" style="background:'+(s.logo?'#fff':lin(s.couleur))+(size?';width:'+size+'px;height:'+size+'px':'')+'">'+(s.logo?'<img src="'+esc(s.logo)+'" alt="Logo '+esc(s.nom)+'" loading="lazy">':esc(initials(s.nom)))+'</div>';}
 const verifBadge=s=>s.verification==='verifie'?VERIF:'';
 function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="logo" href="#accueil"><span class="logo-mark img"><img src="icons/logo.svg" alt=""></span><span class="logo-name">'+esc(n)+'<i>.</i></span></a>';}
 function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label="'+(label||'Retour')+'">'+ic('back')+'</a>';}
@@ -123,7 +126,7 @@ function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label
 /* ---------- CLIENT ---------- */
 function vAccueil(){
   const qs=(S.settings.quartiers||[]).slice(0,8);
-  const cats=(S.settings.categories||[]).slice(0,5).map((c,i)=>'<button type="button" class="cat'+(ui.cat===c.id?' on':'')+'" data-a="cat" data-id="'+esc(c.id)+'"><span class="cat-ico" style="background:linear-gradient(145deg,'+pal(i)[0]+','+pal(i)[1]+');box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 5px 0 '+pal(i)[2]+'">'+ic(ICON[c.id]?c.id:'autre',26,'#fff',2)+'</span>'+esc(c.nom)+'</button>').join('');
+  const cats=(S.settings.categories||[]).map((c,i)=>'<button type="button" class="cat'+(ui.cat===c.id?' on':'')+'" data-a="cat" data-id="'+esc(c.id)+'"><span class="cat-ico" style="background:linear-gradient(145deg,'+pal(i)[0]+','+pal(i)[1]+');box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 5px 0 '+pal(i)[2]+'">'+ic(ICON[c.id]?c.id:'autre',26,'#fff',2)+'</span>'+esc(c.nom)+'</button>').join('');
   return '<div class="wrap"><div class="row between">'+logoHTML()+'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a></div>'+
   '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques d\'Abidjan, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
@@ -288,7 +291,8 @@ function shopFields(s,admin){
 }
 function vvReglages(s){
   const pv=S.priv[s.id]||{};
-  return '<form class="card stack" data-f="shop" data-id="'+s.id+'">'+shopFields(s,false)+'<h3 style="font-size:15px">Vérification</h3><label class="lbl">Numéro de la pièce d\'identité (CNI)<input class="in" id="s-cni" name="cni" value="'+esc(pv.cni)+'" placeholder="C00XXXXXXX"></label><p class="small muted" style="margin:0">Visible seulement par vous et l\'administrateur.</p><button class="btn btn-v btn-block" type="submit">Enregistrer</button></form><button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button>';
+  return '<section class="card row" style="gap:14px">'+avatar(s,72)+'<div class="stack" style="gap:8px;min-width:0"><b>Logo de la boutique</b><span class="small muted">Carré de préférence. Il s\'affiche sur l\'accueil et sur votre page.</span><div class="row" style="gap:8px"><label class="btn btn-v btn-s">'+(s.logo?'Changer':'Ajouter mon logo')+'<input type="file" accept="image/*" data-file="logo" hidden></label>'+(s.logo?'<button type="button" class="btn btn-w btn-s" data-a="rmLogo">Retirer</button>':'')+'</div></div></section>'+
+  '<form class="card stack" data-f="shop" data-id="'+s.id+'">'+shopFields(s,false)+'<h3 style="font-size:15px">Vérification</h3><label class="lbl">Numéro de la pièce d\'identité (CNI)<input class="in" id="s-cni" name="cni" value="'+esc(pv.cni)+'" placeholder="C00XXXXXXX"></label><p class="small muted" style="margin:0">Visible seulement par vous et l\'administrateur.</p><button class="btn btn-v btn-block" type="submit">Enregistrer</button></form><button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button>';
 }
 
 /* ---------- ADMIN ---------- */
@@ -390,7 +394,7 @@ function logOrder(shopId,canal,single){
 }
 
 /* photos */
-function resizePhoto(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const m=900,k=Math.min(1,m/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);c.toBlob(b=>b?res({blob:b,url:URL.createObjectURL(b)}):rej(new Error('photo')),'image/jpeg',.75);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+function resizePhoto(file,max){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const m=max||900,k=Math.min(1,m/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);c.toBlob(b=>b?res({blob:b,url:URL.createObjectURL(b)}):rej(new Error('photo')),'image/jpeg',.75);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
 async function uploadPhoto(blob){
   const path=S.user.id+'/'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2))+'.jpg';
   await q(sb.storage.from('photos').upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000'}));
@@ -448,6 +452,7 @@ const A={
   newProd:()=>{const s=myShop();if(s.formule!=='pro'&&shopProducts(s.id).length>=S.settings.limite_gratuit){ui.vTab='produits';render();toast('Limite gratuite atteinte ('+S.settings.limite_gratuit+' produits). Passez Pro.');return;}ui.vTab='produits';ui.edit='new';ui.newColor=Math.floor(Math.random()*6);ui.photo=undefined;render();},
   editProd:t=>{ui.edit=t.dataset.id;ui.photo=undefined;ui.confirm=null;render();},
   cancelEdit:()=>{ui.edit=null;ui.photo=undefined;ui.confirm=null;render();},
+  rmLogo:()=>{const s=myShop();if(s)act(()=>q(sb.from('shops').update({logo:null}).eq('id',s.id)),'Logo retiré');},
   rmPhoto:()=>{keepForm();ui.photo=null;render(true);restoreForm();},
   vis:t=>{const p=prodById(t.dataset.id);act(()=>q(sb.from('products').update({visible:!p.visible}).eq('id',p.id)));},
   confirm:t=>{ui.confirm=t.dataset.id;render(true);},
@@ -487,6 +492,11 @@ function restoreForm(){const f=document.querySelector('form[data-f="produit"]');
 document.addEventListener('change',async e=>{
   if(e.target.dataset&&e.target.dataset.file==='photo'&&e.target.files[0]){
     try{const r=await resizePhoto(e.target.files[0]);keepForm();ui.photo=r;render(true);restoreForm();}catch(err){toast('Impossible de lire cette photo');}
+  }
+  if(e.target.dataset&&e.target.dataset.file==='logo'&&e.target.files[0]){
+    const s=myShop();if(!s)return;let r;
+    try{r=await resizePhoto(e.target.files[0],400);}catch(err){toast('Impossible de lire cette image');return;}
+    act(async()=>{const url=await uploadPhoto(r.blob);await q(sb.from('shops').update({logo:url}).eq('id',s.id));},'Logo enregistré');
   }
 });
 async function createShop(d){

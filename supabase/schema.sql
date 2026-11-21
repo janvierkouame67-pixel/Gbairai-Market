@@ -226,3 +226,6 @@ create policy "photos: suppression" on storage.objects for delete to authenticat
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 grant execute on all functions in schema public to anon, authenticated;
+
+-- Logo de la boutique (ajout du 21/11/2026)
+alter table public.shops add column if not exists logo text;
