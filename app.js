@@ -66,7 +66,7 @@ function phoneEmail(p){return waNum(p)+'@'+EMAIL_DOMAIN;}
 function monthOf(d){return String(d).slice(0,7);}
 
 /* ---------- STATE ---------- */
-const S={settings:{nom:'Gbairai Market',limite_gratuit:20,quartiers:[],categories:[],paiement:{}},shops:[],products:[],orders:[],txs:[],priv:{},reviews:[],banners:[],payments:[],reports:[],blacklist:[],user:null,role:'visiteur',loaded:false,error:null};
+const S={settings:{nom:'Gbairai Market',limite_gratuit:20,quartiers:[],categories:[],paiement:{}},shops:[],products:[],orders:[],txs:[],priv:{},reviews:[],banners:[],payments:[],reports:[],blacklist:[],conf:{},clientReports:[],user:null,role:'visiteur',loaded:false,error:null};
 let cart=[];try{cart=JSON.parse(localStorage.getItem(CART_KEY)||'[]')||[];}catch(e){cart=[];}
 function saveCart(){try{localStorage.setItem(CART_KEY,JSON.stringify(cart));}catch(e){}}
 function lsGet(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v;}catch(e){return d;}}
@@ -76,7 +76,7 @@ let client=lsGet('gbairai-client',{nom:'',tel:'',adresse:''})||{nom:'',tel:'',ad
 let myOrders=lsGet('gbairai-mes-commandes',[]);if(!Array.isArray(myOrders))myOrders=[];
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={gal:0,suivi:{},pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -133,7 +133,7 @@ async function loadAll(){
     const [st,shops,prods]=await Promise.all([q(sb.from('settings').select('*').eq('id',1).single()),q(sb.from('shops').select('*').order('created_at')),q(sb.from('products').select('*').order('created_at',{ascending:false}))]);
     S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];
     const [rv,bn]=await Promise.all([safe(sb.from('reviews').select('*').order('created_at',{ascending:false}).limit(3000)),safe(sb.from('banners').select('*').order('ordre').order('created_at',{ascending:false}))]);
-    S.reviews=rv;S.banners=bn;
+    S.reviews=rv;S.banners=bn;S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
     if(S.user){
       const prof=await q(sb.from('profiles').select('role').eq('id',S.user.id).maybeSingle());
       S.role=prof&&prof.role==='admin'?'admin':'vendeur';
@@ -142,7 +142,7 @@ async function loadAll(){
         const [o,p]=await Promise.all([q(sb.from('orders').select('*').order('created_at',{ascending:false})),q(sb.from('shop_private').select('*'))]);
         S.orders=o;p.forEach(x=>S.priv[x.shop_id]=x);
         const [pay,rep_,bl]=await Promise.all([safe(sb.from('payments').select('*').order('created_at',{ascending:false})),safe(sb.from('reports').select('*').order('created_at',{ascending:false})),safe(sb.from('blacklist').select('*').order('created_at',{ascending:false}))]);
-        S.payments=pay;S.reports=rep_;S.blacklist=bl;
+        S.payments=pay;S.reports=rep_;S.blacklist=bl;S.clientReports=await safe(sb.from('client_reports').select('*').order('created_at',{ascending:false}));
         if(mine)S.txs=await q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false}));
       }else if(mine){
         const [o,t,p]=await Promise.all([q(sb.from('orders').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false})),q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false})),q(sb.from('shop_private').select('*').eq('shop_id',mine.id))]);
@@ -171,6 +171,25 @@ function tile(p,h,iconSize){
 function avatar(s,size){return '<div class="avatar'+(s.logo?' has-logo':'')+'" style="background:'+(s.logo?'#fff':lin(s.couleur))+(size?';width:'+size+'px;height:'+size+'px':'')+'">'+(s.logo?'<img src="'+esc(s.logo)+'" alt="Logo '+esc(s.nom)+'" loading="lazy">':esc(initials(s.nom)))+'</div>';}
 const verifBadge=s=>s.verification==='verifie'?VERIF:'';
 function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="logo" href="#accueil"><span class="logo-mark img"><img src="icons/logo.svg" alt=""></span><span class="logo-name">'+esc(n)+'<i>.</i></span></a>';}
+function trust(s){const c=S.conf[s.id]||{livrees:0,signalements:0},R=rating(s.id),days=Math.max(0,(Date.now()-new Date(s.created_at))/864e5);
+  let sc=(s.verification==='verifie'?30:0)+Math.round(25*Math.min(1,Math.log10(1+c.livrees)/2))+(R.n?Math.round(20*(R.avg/5)*Math.min(1,R.n/5)):0)+Math.round(15*Math.min(1,days/180))+(c.signalements?-15*c.signalements:10);
+  sc=Math.max(0,Math.min(100,sc));
+  const lab=sc>=80?['Très fiable','#0E7A5F']:sc>=60?['Fiable','#0E7A5F']:sc>=40?['À confirmer','#B45309']:['Prudence','#B91C1C'];
+  return {sc,lab:lab[0],col:lab[1],c,R,days,nouveau:days<14&&s.verification!=='verifie'};}
+function moisTxt(d){d=Math.floor(d);return d<1?'aujourd\'hui':d<31?d+' jour'+(d>1?'s':''):d<365?Math.floor(d/30)+' mois':Math.floor(d/365)+' an'+(d>=730?'s':'');}
+function trustHTML(s){const t=trust(s);
+  const it=(e,b,x)=>'<div class="ck"><i>'+e+'</i><span><b>'+b+'</b>'+(x?' · '+x:'')+'</span></div>';
+  return '<section class="card stack trustcard"><div class="row" style="gap:14px"><div class="score" style="--p:'+t.sc+'%;--c:'+t.col+'"><b>'+t.sc+'</b></div><div><h2 style="font-size:16px">Indice de confiance</h2><div class="small" style="color:'+t.col+';font-weight:700">'+t.lab+'</div><div class="small muted">Calculé par '+esc(S.settings.nom||'Gbairai Market')+'</div></div></div>'+
+  (t.nouveau?'<div class="warn small"><b>⚠ Boutique nouvelle, pas encore vérifiée.</b> Payez seulement à la livraison.</div>':'')+
+  '<div class="stack" style="gap:8px">'+
+  (s.verification==='verifie'?it('🪪','Identité vérifiée','pièce d\'identité contrôlée'):it('🪪','Identité pas encore vérifiée'))+
+  it('📦',t.c.livrees+' commande'+(t.c.livrees>1?'s':'')+' livrée'+(t.c.livrees>1?'s':''),'confirmées par le code du client')+
+  (t.R.n?it('⭐',String(t.R.avg.toFixed(1)).replace('.',',')+' / 5',t.R.n+' avis'):it('⭐','Pas encore d\'avis'))+
+  it('📅','Sur '+esc(S.settings.nom||'Gbairai Market')+' depuis '+moisTxt(t.days))+
+  it('🛡️',t.c.signalements?t.c.signalements+' signalement'+(t.c.signalements>1?'s':'')+' confirmé'+(t.c.signalements>1?'s':''):'0 signalement')+
+  (s.paiement_livraison!==false?it('💵','Paiement à la livraison accepté'):it('💵','Paiement avant livraison demandé','soyez prudent'))+
+  '</div></section>';}
+function tipsHTML(){return '<div class="warn small"><b>Conseils pour acheter sans risque</b><br>• Préférez le paiement à la livraison.<br>• Ne payez jamais tout à l\'avance à un inconnu.<br>• Donnez votre code de livraison seulement quand vous avez l\'article en main.<br>• Un doute ? <a href="#verifier">Vérifiez le numéro</a>.</div>';}
 function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label="'+(label||'Retour')+'">'+ic('back')+'</a>';}
 
 /* ---------- GRAPHIQUES ---------- */
@@ -201,11 +220,11 @@ function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
   const cats=(S.settings.categories||[]).map((c,i)=>'<button type="button" class="cat'+(ui.cat===c.id?' on':'')+'" data-a="cat" data-id="'+esc(c.id)+'"><span class="cat-ico" style="background:linear-gradient(145deg,'+pal(i)[0]+','+pal(i)[1]+');box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 5px 0 '+pal(i)[2]+'">'+ic(ICON[c.id]?c.id:'autre',26,'#fff',2)+'</span>'+esc(c.nom)+'</button>').join('');
-  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
+  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
   '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
-  bannersHTML()+homeTicker()+'<div class="cats">'+cats+'</div>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
+  bannersHTML()+homeTicker()+'<div class="cats">'+cats+'</div>'+'<a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
 }
 function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
   const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
@@ -252,10 +271,11 @@ function vBoutique(slug){
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
   '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div></div>'+
+  trustHTML(s)+
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
   (lines.length?'<a class="btn btn-v btn-block" href="#panier" style="justify-content:space-between"><span>'+lines.reduce((a,l)=>a+l.qty,0)+' article(s) · <span class="num">'+fmtN(tot)+' FCFA</span></span><span>Voir le panier</span></a>':'')+
-  reviewsHTML(s)+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button></div>';
+  reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button></div>';
 }
 function reviewsHTML(s){const r=S.reviews.filter(x=>x.shop_id===s.id&&x.visible),R=rating(s.id),done=lsGet('gbairai-avis',[]).includes(s.id);
   const dist=[5,4,3,2,1].map(k=>[k,r.filter(x=>x.note===k).length]);
@@ -290,29 +310,61 @@ function vPanier(){
   h+='<form class="card stack" data-f="client" style="gap:10px"><b class="row" style="gap:6px">'+ic('truck',18,'#5B21B6')+'Vos informations de livraison</b><p class="small muted" style="margin:0">Facultatif, mais le vendeur vous livre plus vite. Gardées sur ce téléphone seulement.</p><div class="grid2"><label class="lbl">Nom<input class="in" name="nom" data-client="nom" maxlength="80" value="'+esc(client.nom)+'" autocomplete="name"></label><label class="lbl">Téléphone<input class="in" name="tel" data-client="tel" type="tel" maxlength="30" value="'+esc(client.tel)+'" autocomplete="tel"></label></div><label class="lbl">Ville, quartier, repère<input class="in" name="adresse" data-client="adresse" maxlength="200" value="'+esc(client.adresse)+'" placeholder="Ex. : Bouaké, Air France 2, près de la pharmacie"></label></form>';
   if(ids.length>1)h+='<div class="note">Vous avez des articles de '+ids.length+' boutiques : une commande est envoyée à chaque vendeur.</div>';
   ids.forEach(id=>{const s=shopById(id),lines=groups[id],tot=lines.reduce((a,l)=>a+prix(l.p)*l.qty,0),o=oid('c-'+id),txt=orderText(s,lines,o);
-    h+='<section class="stack"><div class="row between"><a href="#boutique-'+esc(s.slug)+'" class="row" style="text-decoration:none;color:var(--ink);font-weight:700">'+avatar(s,36)+esc(s.nom)+verifBadge(s)+'</a><span class="muted small">'+esc(place(s))+'</span></div>'+
+    h+='<section class="stack"><div class="row between"><a href="#boutique-'+esc(s.slug)+'" class="row" style="text-decoration:none;color:var(--ink);font-weight:700">'+avatar(s,36)+esc(s.nom)+verifBadge(s)+'</a><span class="muted small">'+esc(place(s))+'</span></div>'+(trust(s).nouveau?'<div class="warn small"><b>⚠ Boutique nouvelle, pas encore vérifiée.</b> Payez seulement à la livraison.</div>':'')+
     lines.map(l=>'<div class="line"><div style="width:64px;flex-shrink:0">'+tile(l.p,64,30)+'</div><div class="grow"><div class="ell" style="font-weight:600">'+esc(l.p.nom)+'</div>'+(l.taille?'<div class="small muted">Taille '+esc(l.taille)+'</div>':'')+'<div class="price num">'+F(prix(l.p)*l.qty)+'</div></div><div class="stepper"><button type="button" data-a="qty" data-i="'+l.i+'" data-d="-1" aria-label="Retirer un">−</button><span>'+l.qty+'</span><button type="button" data-a="qty" data-i="'+l.i+'" data-d="1" aria-label="Ajouter un">+</button></div></div>').join('')+
     '<div class="card stack" style="gap:8px"><div class="row between"><span class="muted">Livraison</span><span style="font-weight:600;text-align:right">À voir avec le vendeur</span></div><div class="row between"><b>Total</b><span class="price num" style="font-size:22px">'+fmtN(tot)+' FCFA</span></div></div>'+
     '<div class="small muted" style="font-weight:700;letter-spacing:.4px">MESSAGE ENVOYÉ AU VENDEUR</div><div class="msg" data-msg="'+s.id+'">'+esc(txt)+'</div>'+
     '<a class="btn btn-g btn-block" style="min-height:56px" target="_blank" rel="noopener" data-a="order" data-shop="'+s.id+'" data-oid="'+o+'" href="https://wa.me/'+waNum(s.whatsapp)+'?text='+encodeURIComponent(txt)+'">'+ic('wa',22,'#fff')+'Commander sur WhatsApp</a>'+
     (s.telegram?'<a class="btn btn-t btn-block" target="_blank" rel="noopener" data-a="orderTg" data-shop="'+s.id+'" data-oid="'+o+'" data-text="'+esc(txt)+'" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',20,'#1E4FA8')+'Commander sur Telegram</a><p class="small muted" style="margin:0">Sur Telegram, le message est copié : collez-le dans la discussion.</p>':'')+'</section>';});
-  return h+mesCommandes()+'</div>';
+  return h+tipsHTML()+mesCommandes()+'</div>';
 }
 function mesCommandes(){if(!myOrders.length)return '';
-  return '<section class="card stack"><h2 style="font-size:16px">Mes commandes récentes</h2>'+myOrders.slice(0,8).map(o=>'<a class="row between line" style="text-decoration:none;color:inherit" href="#suivi-'+esc(o.id)+'"><span style="min-width:0"><b class="ell" style="display:block">'+esc(o.boutique)+'</b><span class="small muted">'+esc(String(o.date).slice(0,10))+' · n° '+esc(String(o.id).slice(0,8).toUpperCase())+'</span></span><span class="row" style="gap:6px"><b class="num">'+F(o.total)+'</b>'+ic('truck',18,'#5B21B6')+'</span></a>').join('')+'</section>';}
+  return '<section class="card stack"><div class="row between"><h2 style="font-size:16px">Mes commandes récentes</h2><a class="small" href="#commandes" style="font-weight:700">Tout voir</a></div>'+myOrders.slice(0,5).map(o=>'<a class="row between line" style="text-decoration:none;color:inherit" href="#suivi-'+esc(o.id)+'"><span style="min-width:0"><b class="ell" style="display:block">'+esc(o.boutique)+'</b><span class="small muted">'+esc(String(o.date).slice(0,10))+' · n° '+esc(String(o.id).slice(0,8).toUpperCase())+'</span></span><span class="row" style="gap:6px"><b class="num">'+F(o.total)+'</b>'+ic('truck',18,'#5B21B6')+'</span></a>').join('')+'</section>';}
 function vFavoris(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id));const ps=favs.map(prodById).filter(p=>p&&p.visible&&ok.has(p.shop_id));
   return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mes favoris</h1></div>'+(ps.length?'<div class="pgrid">'+ps.map(pCard).join('')+'</div>':'<div class="card stack" style="text-align:center;padding:28px"><h2 style="font-size:18px">Aucun favori</h2><p class="muted" style="margin:0">Touchez le cœur sur un produit pour le garder ici.</p><a class="btn btn-v" href="#accueil">Voir les produits</a></div>')+mesCommandes()+'</div>';}
 const LIV=[['envoyee','Commande envoyée'],['confirmee','Confirmée par le vendeur'],['preparation','En préparation'],['en_route','En route'],['livree','Livrée']];
+const LIVLAB={attente:'Confirmée',preparation:'En préparation',en_route:'En route',livree:'Livrée',echec:'Non récupérée'};
+function stepOf(d){return d.statut==='annulee'||d.livraison==='echec'?-1:d.statut==='envoyee'?0:{attente:1,preparation:2,en_route:3,livree:4}[d.livraison]||1;}
+function hhmm(t){if(!t)return '';const d=new Date(t),n=new Date();const h=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');return d.toDateString()===n.toDateString()?'Aujourd\'hui, '+h:d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+', '+h;}
 function vSuivi(id){
   const d=ui.suivi[id];
   if(d===undefined){ui.suivi[id]=null;sb.rpc('suivi_commande',{oid:id}).then(r=>{ui.suivi[id]=(r.data&&r.data[0])||false;render(true);},()=>{ui.suivi[id]=false;render(true);});}
-  let h='<div class="wrap"><div class="row">'+back('#panier')+'<h1 style="font-size:20px">Suivi de commande</h1></div>';
+  let h='<div class="wrap"><div class="row">'+back('#commandes')+'<h1 style="font-size:20px">Commande n° '+esc(String(id).slice(0,8).toUpperCase())+'</h1></div>';
   if(!d)return h+'<div class="card">'+(d===false?'<h2 style="font-size:17px">Commande introuvable</h2><p class="muted" style="margin:0">Vérifiez le lien reçu.</p>':'<p class="muted" style="margin:0">Chargement…</p>')+'</div></div>';
-  const step=d.statut==='annulee'?-1:d.statut==='envoyee'?0:{attente:1,preparation:2,en_route:3,livree:4}[d.livraison]||1;
-  return h+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:120px;height:120px"></span><p style="margin:0">Commande n° '+esc(String(id).slice(0,8).toUpperCase())+'</p><h2 style="position:relative;color:#fff;font-size:24px;margin:4px 0">'+(step<0?'Commande annulée':LIV[step][1])+'</h2><p style="margin:0">'+esc(d.boutique)+' · '+F(d.total)+'</p></section>'+
-  (step>=0?'<div class="card"><ol class="steps">'+LIV.map((x,i)=>'<li class="'+(i<step?'done':i===step?'now':'')+'"><span>'+(i<step?'✓':i+1)+'</span>'+x[1]+'</li>').join('')+'</ol></div>':'')+
-  '<div class="card stack" style="gap:6px">'+(d.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><b>Total</b><b class="price num">'+F(d.total)+'</b></div></div>'+
-  '<a class="btn btn-g btn-block" target="_blank" rel="noopener" href="https://wa.me/'+waNum(d.whatsapp)+'?text='+encodeURIComponent('Bonjour, où en est ma commande n° '+String(id).slice(0,8).toUpperCase()+' ?')+'">'+ic('wa',20,'#fff')+'Écrire au vendeur</a><a class="btn btn-w btn-block" href="#boutique-'+esc(d.slug)+'">Revoir la boutique</a></div>';
+  const step=stepOf(d),hi=d.hist||{},mine=myOrders.find(o=>o.id===id),sh=S.shops.find(x=>x.slug===d.slug);
+  const when=[d.created_at,hi.confirmee,hi.preparation,hi.en_route,hi.livree];
+  const title=d.statut==='annulee'?'Commande annulée':d.livraison==='echec'?'Non récupérée':LIV[step][1];
+  h+='<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:120px;height:120px"></span><p style="margin:0">'+esc(d.boutique)+' · '+F(d.total)+'</p><h2 style="color:#fff;font-size:26px;margin:4px 0">'+(step===3?'🛵 ':step===4?'✅ ':'')+title+'</h2>'+(d.eta&&step>0&&step<4?'<p style="margin:0">Arrivée prévue : '+esc(d.eta)+'</p>':'')+(d.livree_code?'<p style="margin:0">Livraison confirmée par votre code ✔</p>':'')+'</section>';
+  if(step>=0)h+='<div class="card"><ol class="steps">'+LIV.map((x,i)=>'<li class="'+(i<step||(i===4&&step===4)?'done':i===step?'now':'')+'"><span>'+(i<step||(i===4&&step===4)?'✓':i+1)+'</span><div><div>'+x[1]+'</div>'+(i<=step&&when[i]?'<small>'+hhmm(when[i])+(i===3&&d.livreur_nom?' · Livreur : '+esc(d.livreur_nom)+(d.livreur_tel?' · '+esc(d.livreur_tel):''):'')+'</small>':i===4&&step<4&&d.a_code?'<small>Donnez le code au livreur</small>':'')+'</div></li>').join('')+'</ol></div>';
+  if(mine&&mine.code&&d.a_code&&!d.livree_code&&step>=0)h+='<div class="card stack codecard"><b class="row" style="gap:6px;justify-content:center">🔒 Votre code de livraison</b><div class="code">'+mine.code.split('').map(c=>'<i>'+c+'</i>').join('')+'</div><p class="small muted" style="margin:0">Donnez ce code au livreur <b>seulement quand vous avez l\'article en main</b>. Ne le donnez jamais avant.</p></div>';
+  h+='<div class="card stack" style="gap:6px">'+(d.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><b>Total</b><b class="price num">'+F(d.total)+'</b></div></div>';
+  h+='<div class="grid2">'+(d.livreur_tel&&step===3?'<a class="btn btn-g" href="tel:'+esc(d.livreur_tel.replace(/\s/g,''))+'">📞 Appeler le livreur</a>':'<a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/'+waNum(d.whatsapp)+'?text='+encodeURIComponent('Bonjour, où en est ma commande n° '+String(id).slice(0,8).toUpperCase()+' ?')+'">'+ic('wa',20,'#fff')+'Écrire au vendeur</a>')+
+    (sh?'<button type="button" class="btn btn-r" data-a="report" data-id="'+sh.id+'" data-motif="Produit non reçu" data-oid="'+esc(id)+'">⚠ Un problème</button>':'')+'</div>';
+  return h+'<a class="btn btn-w btn-block" href="#boutique-'+esc(d.slug)+'">Revoir la boutique</a></div>';
+}
+function vMesCommandes(){
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mes commandes</h1></div>'+
+  '<form class="card stack" data-f="trackNum" style="gap:8px"><b>Suivre une commande</b><div class="grid2"><input class="in" name="num" maxlength="8" required placeholder="N° (8 caractères)" aria-label="Numéro de commande"><input class="in" name="tel" type="tel" required placeholder="Votre téléphone" value="'+esc(client.tel||'')+'" aria-label="Votre téléphone"></div><button class="btn btn-v btn-s" type="submit">Suivre</button></form>';
+  if(!myOrders.length)return h+'<div class="card stack" style="text-align:center;padding:28px"><h2 style="font-size:18px">Aucune commande sur ce téléphone</h2><p class="muted" style="margin:0">Vos commandes apparaissent ici après avoir commandé sur WhatsApp ou Telegram.</p><a class="btn btn-v" href="#accueil">Voir les boutiques</a></div></div>';
+  if(ui.mes===null){ui.mes={};sb.rpc('suivi_commandes',{ids:myOrders.map(o=>o.id)}).then(r=>{(r.data||[]).forEach(x=>ui.mes[x.id]=x);ui.mesOk=true;render(true);},()=>{ui.mesOk=true;render(true);});}
+  const chip={0:['⏳ Envoyée','b-orange'],1:['✔ Confirmée','b-violet'],2:['📦 En préparation','b-violet'],3:['🛵 En route','b-blue'],4:['✔ Livrée','b-green'],'-1':['✖ Annulée','b-grey']};
+  return h+myOrders.map(o=>{const d=ui.mes[o.id],st=d?stepOf(d):null,c=d?chip[st]:null,pc=st===null?0:st<0?100:[15,35,55,78,100][st];
+    return '<a class="card stack mescard" href="#suivi-'+esc(o.id)+'"><div class="row between"><span style="min-width:0"><b class="ell" style="display:block">'+esc(o.boutique)+'</b><span class="small muted">n° '+esc(String(o.id).slice(0,8).toUpperCase())+' · '+esc(String(o.date).slice(0,10))+'</span></span>'+(c?'<span class="badge '+c[1]+'">'+(d.livraison==='echec'?'Non récupérée':c[0])+'</span>':'<span class="small muted">'+(ui.mesOk?'—':'…')+'</span>')+'</div><div class="bar"><i style="width:'+pc+'%;'+(st===4?'background:var(--green)':st<0?'background:#C9C2D9':'')+'"></i></div><div class="row between small"><span class="muted">'+(d?(st===0?'En attente de réponse du vendeur':st===4?'Livrée '+(d.livree_code?'et confirmée par code':''):d.eta&&st>0?'Arrivée prévue : '+esc(d.eta):'Mis à jour '+ago((d.hist&&Object.values(d.hist).sort().pop())||d.created_at)):'')+'</span><b class="num">'+F(o.total)+'</b></div></a>';}).join('')+'</div>';
+}
+function vVerifier(){
+  const r=ui.verif;
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Vérifier un numéro</h1></div>'+
+  '<form class="card stack" data-f="verifier" style="gap:8px"><span class="small muted">Quelqu\'un vous demande de payer ? Vérifiez son numéro avant.</span><div class="row" style="gap:8px"><input class="in" name="tel" type="tel" required placeholder="07 XX XX XX XX" value="'+esc(r?r.tel:'')+'" style="flex:1" aria-label="Numéro à vérifier"><button class="btn btn-v btn-s" type="submit">Vérifier</button></div></form>';
+  if(r){const x=r.res;
+    if(!x)h+='<div class="card muted">Vérification impossible pour le moment. Réessayez.</div>';
+    else if(x.bloque)h+='<div class="danger"><b style="font-size:15px">⛔ Numéro bloqué</b><br>Ce numéro a été bloqué sur '+esc(S.settings.nom||'Gbairai Market')+(x.signalements?' après <b>'+x.signalements+' signalement'+(x.signalements>1?'s':'')+'</b>':'')+'. Ne lui envoyez pas d\'argent.</div>';
+    else if(x.signalements)h+='<div class="danger"><b style="font-size:15px">⚠ Numéro signalé</b><br>Ce numéro a été signalé <b>'+x.signalements+' fois</b>. Soyez très prudent : payez seulement à la livraison.</div>';
+    else h+='<div class="good"><b style="font-size:15px">✔ Aucun signalement</b><br>Ce numéro n\'est pas signalé chez nous. Restez prudent quand même.</div>';
+    if(x&&x.boutique){const sh=S.shops.find(z=>z.slug===x.slug);h+='<a class="card row" href="#boutique-'+esc(x.slug)+'" style="text-decoration:none;color:inherit">'+(sh?avatar(sh,44):'')+'<span style="min-width:0"><b>'+esc(x.boutique)+(x.verifie?' '+VERIF:'')+'</b><br><span class="small muted">Boutique sur '+esc(S.settings.nom||'Gbairai Market')+' depuis '+moisTxt((Date.now()-new Date(x.depuis))/864e5)+(sh?' · confiance '+trust(sh).sc+'/100':'')+'</span></span></a>';
+      if(sh&&trust(sh).nouveau)h+='<div class="warn small"><b>⚠ Boutique nouvelle, pas encore vérifiée.</b> Payez seulement à la livraison.</div>';}
+    else if(x&&!x.bloque)h+='<div class="note small">Ce numéro n\'a pas de boutique chez nous.</div>';
+  }
+  return h+'<div class="good small"><b>✔ Avant chaque paiement Mobile Money</b>, vérifiez que le nom affiché par Orange, MTN, Moov ou Wave correspond bien au vendeur.</div>'+tipsHTML()+'<p class="small muted" style="margin:0">Victime d\'une arnaque ? Ouvrez la page de la boutique et touchez « Signaler », ou écrivez au support.</p></div>';
 }
 
 /* ---------- AUTH ---------- */
@@ -412,9 +464,29 @@ function vvCommandes(s){
   return '<div class="note">Chaque fois qu\'un client clique sur « Commander », la commande apparaît ici. Confirmez-la quand le client a payé : la recette s\'ajoute à la caisse et le stock baisse.</div>'+
   (ords.length?ords.map(o=>'<div class="card stack" style="gap:8px"><div class="row between"><b>Commande du '+esc(String(o.created_at).slice(0,10))+'</b><span class="badge '+lab[o.statut][1]+'">'+lab[o.statut][0]+'</span></div>'+(o.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><span class="muted small">Via '+(o.canal==='telegram'?'Telegram':'WhatsApp')+' · n° '+esc(String(o.id).slice(0,8).toUpperCase())+'</span><b class="price num">'+fmtN(o.total)+' FCFA</b></div>'+
   (o.client_nom||o.client_tel||o.client_adresse?'<div class="clientbox small">'+ic('user',14,'#5B21B6')+'<span>'+esc([o.client_nom,o.client_tel,o.client_adresse].filter(Boolean).join(' · '))+'</span></div>':'')+
-  (o.statut==='confirmee'?'<div class="stack" style="gap:6px"><span class="small" style="font-weight:700">Livraison</span><div class="seg">'+[['attente','À préparer'],['preparation','En préparation'],['en_route','En route'],['livree','Livrée']].map(x=>'<button type="button" class="'+((o.livraison||'attente')===x[0]?'on':'')+'" data-a="liv" data-id="'+o.id+'" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+(o.client_tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(o.client_tel)+'?text='+encodeURIComponent('Bonjour '+(o.client_nom||'')+', votre commande n° '+String(o.id).slice(0,8).toUpperCase()+' chez '+s.nom+' : '+({attente:'confirmée',preparation:'en préparation',en_route:'en route',livree:'livrée'}[o.livraison||'attente'])+'.\nSuivi : '+trackUrl(o.id))+'">'+ic('truck',16,'#fff')+'Envoyer le suivi au client</a>':'')+'</div>':'')+
+  (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?livBlock(o,s):'')+
   (o.statut==='envoyee'?'<div class="grid2"><button type="button" class="btn btn-g btn-s" data-a="confOrder" data-id="'+o.id+'">Confirmer la vente</button><button type="button" class="btn btn-w btn-s" data-a="cancelOrder" data-id="'+o.id+'">Annuler</button></div>':'')+'</div>').join(''):'<div class="card muted">Pas encore de commande. Partagez votre lien sur vos statuts.</div>');
 }
+function fiabHTML(tel,shopId){const k=waNum(tel);
+  if(ui.fiab[k]===undefined){ui.fiab[k]=null;sb.rpc('fiabilite_client',{tel}).then(r=>{ui.fiab[k]=(r.data&&r.data[0])||false;render(true);},()=>{ui.fiab[k]=false;render(true);});}
+  const f=ui.fiab[k];if(!f)return '';
+  const bad=f.echecs+f.signalements+(f.bloque?3:0),btn='<button type="button" class="linkbtn" data-a="clientRep" data-tel="'+esc(tel)+'" data-id="'+shopId+'">'+ic('flag',13)+'Signaler ce client</button>';
+  if(f.bloque||bad>=2||f.annulees>=3)return '<div class="danger small"><b>⚠ Client à risque</b><br>'+(f.bloque?'Numéro bloqué sur la plateforme. ':'')+[f.echecs?f.echecs+' commande'+(f.echecs>1?'s':'')+' non récupérée'+(f.echecs>1?'s':''):'',f.annulees?f.annulees+' annulée'+(f.annulees>1?'s':''):'',f.signalements?f.signalements+' signalement'+(f.signalements>1?'s':''):''].filter(Boolean).join(' · ')+'.<br>Conseil : demandez une avance pour la livraison.</div>'+btn;
+  if(f.recues>=2&&!bad)return '<div class="good small"><b>✔ Client fiable</b> · '+f.recues+' commandes reçues, '+f.annulees+' annulation'+(f.annulees>1?'s':'')+'</div>';
+  if(f.recues||f.echecs||f.annulees)return '<div class="note small">Historique du client : '+f.recues+' reçue'+(f.recues>1?'s':'')+' · '+f.echecs+' non récupérée'+(f.echecs>1?'s':'')+' · '+f.annulees+' annulée'+(f.annulees>1?'s':'')+'</div>'+btn;
+  return '<div class="note small">Nouveau client : aucune commande avant.</div>';}
+function livBlock(o,s){const lv=o.livraison||'attente',n=String(o.id).slice(0,8).toUpperCase();
+  const msg='Bonjour '+(o.client_nom||'')+', votre commande n° '+n+' chez '+s.nom+' : '+({attente:'confirmée',preparation:'en préparation',en_route:'en route',livree:'livrée',echec:'non récupérée'}[lv])+'.'+(lv==='en_route'&&o.livreur_nom?'\nLivreur : '+o.livreur_nom+(o.livreur_tel?' ('+o.livreur_tel+')':''):'')+(o.eta&&lv!=='livree'?'\nArrivée prévue : '+o.eta:'')+(lv==='en_route'?'\nDonnez votre code secret au livreur seulement quand vous avez l\'article.':'')+'\nSuivi : '+trackUrl(o.id);
+  let h='<div class="stack" style="gap:8px"><span class="small" style="font-weight:700">Livraison</span><div class="seg">'+[['attente','À préparer'],['preparation','Préparation'],['en_route','En route'],['livree','Livrée']].map(x=>'<button type="button" class="'+(lv===x[0]?'on':'')+'" data-a="liv" data-id="'+o.id+'" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
+  if(lv==='livree')h+=o.livree_code?'<div class="good small"><b>✔ Livrée et confirmée par le code du client.</b></div>':'<div class="note small">Marquée livrée sans le code du client : elle ne compte pas dans votre indice de confiance.</div>';
+  if(lv==='echec')h+='<div class="warn small">Commande marquée « non récupérée ».</div>';
+  if(lv!=='livree'&&lv!=='echec'){
+    h+='<form class="stack livform" data-f="livreur" data-id="'+o.id+'" style="gap:6px"><div class="grid2"><input class="in" name="livreur_nom" maxlength="60" placeholder="🛵 Nom du livreur" value="'+esc(o.livreur_nom||'')+'" aria-label="Nom du livreur"><input class="in" name="livreur_tel" type="tel" maxlength="30" placeholder="Tél. du livreur" value="'+esc(o.livreur_tel||'')+'" aria-label="Téléphone du livreur"></div><div class="row" style="gap:6px"><input class="in" name="eta" maxlength="60" placeholder="Arrivée prévue (ex. : aujourd\'hui 16h-18h)" value="'+esc(o.eta||'')+'" style="flex:1" aria-label="Arrivée prévue"><button class="btn btn-w btn-s" type="submit">OK</button></div></form>';
+    h+='<form class="codebox" data-f="codeLiv" data-id="'+o.id+'"><b class="small">🔒 Confirmer la livraison avec le code du client</b><div class="row" style="gap:6px"><input class="in" name="code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="4 chiffres" style="flex:1;letter-spacing:6px;font-weight:800" aria-label="Code du client"><button class="btn btn-g btn-s" type="submit">Valider</button></div></form>';
+    h+='<button type="button" class="linkbtn" data-a="liv" data-id="'+o.id+'" data-v="echec">Client absent : marquer « non récupérée »</button>';}
+  if(o.client_tel)h+='<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(o.client_tel)+'?text='+encodeURIComponent(msg)+'">'+ic('wa',16,'#fff')+'Envoyer le suivi au client sur WhatsApp</a>';
+  return h+'</div>';}
+function showClientRep(tel,shopId){document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="clientRep" data-id="'+shopId+'" data-tel="'+esc(tel)+'"><h2 style="font-size:17px">Signaler ce client</h2><p class="small muted" style="margin:0">Numéro : <b>'+esc(tel)+'</b>. L\'administrateur vérifie puis peut bloquer ce numéro sur toute la plateforme.</p><label class="lbl">Motif<select class="in" name="motif">'+['Commande non récupérée','Faux numéro','Faux paiement / fausse preuve','Insultes ou menaces','Autre'].map(x=>'<option>'+x+'</option>').join('')+'</select></label><label class="lbl">Détails (facultatif)<textarea class="in" name="details" rows="3" maxlength="600"></textarea></label><button class="btn btn-o btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-s" data-a="closeModal">Annuler</button></form></div>';}
 function vvClients(s){
   const m={};S.orders.filter(o=>o.shop_id===s.id&&(o.client_tel||o.client_nom)).forEach(o=>{const k=o.client_tel?waNum(o.client_tel):'nom:'+o.client_nom.toLowerCase();
     const c=m[k]=m[k]||{nom:'',tel:o.client_tel,adresse:'',n:0,ok:0,total:0,last:o.created_at};c.n++;if(o.client_nom)c.nom=c.nom||o.client_nom;if(o.client_adresse)c.adresse=c.adresse||o.client_adresse;
@@ -448,7 +520,7 @@ function shopFields(s,admin){
   return '<h3 style="font-size:15px">Boutique</h3>'+inp('nom','Nom de la boutique')+(admin?inp('slug','Lien (après #boutique-)'):'')+'<div class="grid2">'+inp('gerant','Nom du gérant')+'<label class="lbl">Catégorie<select class="in" id="s-categorie" name="categorie">'+co+'</select></label></div>'+
   '<label class="lbl">Description de la boutique<textarea class="in" id="s-description" name="description" rows="3">'+esc(s.description)+'</textarea></label>'+
   '<h3 style="font-size:15px">Contacts</h3><div class="grid2">'+inp('whatsapp','WhatsApp (commandes)','07 XX XX XX XX','tel')+inp('telegram','Telegram','@nom')+inp('telephone','Téléphone d\'appel','','tel')+inp('email','E-mail','facultatif','email')+inp('facebook','Facebook','lien de la page')+inp('tiktok','TikTok','@compte')+'</div>'+
-  '<h3 style="font-size:15px">Localisation et livraison</h3>'+locFields('s',s)+''+inp('adresse','Adresse ou point de repère')+'<div class="grid2">'+inp('livraison_zones','Zones de livraison')+inp('livraison_frais','Frais de livraison (F)')+'</div>';
+  '<h3 style="font-size:15px">Localisation et livraison</h3>'+locFields('s',s)+''+inp('adresse','Adresse ou point de repère')+'<div class="grid2">'+inp('livraison_zones','Zones de livraison')+inp('livraison_frais','Frais de livraison (F)')+'</div>'+('paiement_livraison' in s?'<label class="lbl">Paiement à la livraison<select class="in" name="paiement_livraison"><option value="oui"'+(s.paiement_livraison!==false?' selected':'')+'>Oui, j\'accepte (recommandé, inspire confiance)</option><option value="non"'+(s.paiement_livraison===false?' selected':'')+'>Non, je demande le paiement avant</option></select></label>':'');
 }
 function vvReglages(s){
   const pv=S.priv[s.id]||{};
@@ -551,8 +623,11 @@ function aModeration(){
   const R=S.reports,sName=id=>{const s=shopById(id);return s?s.nom:'(boutique supprimée)';};
   return '<div class="gridf"><section class="card stack"><h2 style="font-size:17px">Signalements ('+R.filter(r=>r.statut==='nouveau').length+' nouveaux)</h2>'+
   (R.length?R.map(r=>{const s=shopById(r.shop_id);return '<div class="review'+(r.statut==='nouveau'?' new':'')+'"><div class="row between wrapx"><b>'+esc(r.motif)+'</b><span class="small muted">'+ago(r.created_at)+'</span></div><div class="small">Boutique : <b>'+esc(sName(r.shop_id))+'</b>'+(r.contact?' · contact : '+esc(r.contact):'')+'</div>'+(r.details?'<p>'+esc(r.details)+'</p>':'')+
-    '<div class="row wrapx" style="gap:6px">'+(s?'<button type="button" class="btn btn-w btn-s" data-a="aOpen" data-id="'+s.id+'">Fiche</button>'+(s.statut==='actif'?'<button type="button" class="btn btn-o btn-s" data-a="aSusp" data-id="'+s.id+'">Suspendre</button>':'')+'<button type="button" class="btn btn-w btn-s" data-a="blShop" data-id="'+s.id+'" data-motif="'+esc(r.motif)+'">Bloquer le numéro</button>':'')+(r.statut==='nouveau'?'<button type="button" class="btn btn-g btn-s" data-a="repDone" data-id="'+r.id+'">Traité</button>':'<span class="badge b-grey">Traité</span>')+'</div></div>';}).join(''):'<p class="muted" style="margin:0">Aucun signalement.</p>')+'</section>'+
-  '<section class="card stack"><h2 style="font-size:17px">Liste noire ('+S.blacklist.length+')</h2><p class="small muted" style="margin:0">Ces numéros ne peuvent plus créer ni modifier de boutique.</p>'+
+    '<div class="row wrapx" style="gap:6px">'+(s?'<button type="button" class="btn btn-w btn-s" data-a="aOpen" data-id="'+s.id+'">Fiche</button>'+(s.statut==='actif'?'<button type="button" class="btn btn-o btn-s" data-a="aSusp" data-id="'+s.id+'">Suspendre</button>':'')+'<button type="button" class="btn btn-w btn-s" data-a="blShop" data-id="'+s.id+'" data-motif="'+esc(r.motif)+'">Bloquer le numéro</button>':'')+(r.statut==='nouveau'?'<button type="button" class="btn btn-o btn-s" data-a="repOk" data-id="'+r.id+'" title="Le signalement est fondé : il baisse l\'indice de confiance">Fondé</button><button type="button" class="btn btn-g btn-s" data-a="repDone" data-id="'+r.id+'">Traité</button>':r.statut==='confirme'?'<span class="badge b-orange">Fondé</span>':'<span class="badge b-grey">Traité</span>')+'</div></div>';}).join(''):'<p class="muted" style="margin:0">Aucun signalement.</p>')+'</section>'+
+  '<section class="card stack"><h2 style="font-size:17px">Clients signalés par les vendeurs ('+S.clientReports.filter(r=>r.statut==='nouveau').length+' nouveaux)</h2>'+
+  (S.clientReports.length?S.clientReports.map(r=>'<div class="review'+(r.statut==='nouveau'?' new':'')+'"><div class="row between wrapx"><b>'+esc(r.motif)+'</b><span class="small muted">'+ago(r.created_at)+'</span></div><div class="small">Client : <b class="num">'+esc(r.client_tel)+'</b> · par '+esc(sName(r.shop_id))+'</div>'+(r.details?'<p>'+esc(r.details)+'</p>':'')+
+    '<div class="row wrapx" style="gap:6px">'+(r.statut==='nouveau'?'<button type="button" class="btn btn-o btn-s" data-a="crSet" data-v="confirme" data-id="'+r.id+'">Fondé</button><button type="button" class="btn btn-w btn-s" data-a="crSet" data-v="rejete" data-id="'+r.id+'">Rejeter</button>':'<span class="badge '+(r.statut==='confirme'?'b-orange">Fondé':'b-grey">Rejeté')+'</span>')+'<button type="button" class="btn btn-w btn-s" data-a="crBlock" data-id="'+r.id+'">Bloquer le numéro</button></div></div>').join(''):'<p class="muted" style="margin:0">Aucun client signalé.</p>')+'</section>'+
+  '<section class="card stack"><h2 style="font-size:17px">Liste noire ('+S.blacklist.length+')</h2><p class="small muted" style="margin:0">Ces numéros ne peuvent plus créer de boutique ni passer de commande.</p>'+
   S.blacklist.map(b=>'<div class="row between"><span><b class="num">'+esc(b.phone)+'</b>'+(b.motif?'<br><span class="small muted">'+esc(b.motif)+'</span>':'')+'</span><button type="button" class="btn btn-w btn-s" data-a="blDel" data-id="'+esc(b.phone)+'">Retirer</button></div>').join('')+
   '<form class="stack" data-f="blacklist" style="gap:8px"><div class="grid2"><label class="lbl">Numéro<input class="in" name="phone" type="tel" required placeholder="07 XX XX XX XX"></label><label class="lbl">Motif<input class="in" name="motif" placeholder="Arnaque…"></label></div><button class="btn btn-v btn-s" type="submit">Ajouter à la liste noire</button></form></section>'+
   '<section class="card stack"><h2 style="font-size:17px">Avis clients ('+S.reviews.length+')</h2>'+(S.reviews.length?S.reviews.slice(0,60).map(r=>'<div class="review'+(r.visible?'':' off')+'"><div class="row between wrapx"><b>'+esc(r.nom)+' → '+esc(sName(r.shop_id))+'</b>'+stars(r.note,13)+'</div>'+(r.commentaire?'<p>'+esc(r.commentaire)+'</p>':'')+'<div class="row" style="gap:6px"><span class="small muted" style="flex:1">'+ago(r.created_at)+(r.visible?'':' · masqué')+'</span><button type="button" class="btn btn-w btn-s" data-a="rvToggle" data-id="'+r.id+'">'+(r.visible?'Masquer':'Afficher')+'</button><button type="button" class="btn btn-w btn-s" data-a="rvDel" data-id="'+r.id+'">Supprimer</button></div></div>').join(''):'<p class="muted" style="margin:0">Aucun avis.</p>')+'</section></div>';
@@ -585,7 +660,7 @@ function aParams(){
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h==='favoris'?'accueil':h.startsWith('suivi-')?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -600,6 +675,8 @@ function render(keep){
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
   else if(h.startsWith('suivi-'))html=vSuivi(h.slice(6));
+  else if(h==='commandes')html=vMesCommandes();
+  else if(h==='verifier')html=vVerifier();
   else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
@@ -621,8 +698,10 @@ function logOrder(shopId,canal,single,id){
   if(!lines.length)return;id=id||uuid();
   const row={id,shop_id:shopId,canal,statut:'envoyee',items:lines.map(l=>({pid:l.p.id,nom:l.p.nom,prix:prix(l.p),qty:l.qty,taille:l.taille||null})),total:lines.reduce((a,l)=>a+prix(l.p)*l.qty,0),
     client_nom:String(client.nom||'').trim().slice(0,80),client_tel:String(client.tel||'').trim().slice(0,30),client_adresse:String(client.adresse||'').trim().slice(0,200)};
-  sb.from('orders').insert(row).then(r=>{if(r&&r.error){delete row.client_nom;delete row.client_tel;delete row.client_adresse;sb.from('orders').insert(row).then(()=>{},()=>{});}},()=>{});
-  const s=shopById(shopId);myOrders=[{id,boutique:s?s.nom:'',total:row.total,date:new Date().toISOString()}].concat(myOrders.filter(o=>o.id!==id)).slice(0,30);lsSet('gbairai-mes-commandes',myOrders);
+  const mkCode=()=>sb.rpc('creer_code',{oid:id,c:code}).then(()=>{},()=>{});
+  sb.from('orders').insert(row).then(r=>{if(r&&r.error){delete row.client_nom;delete row.client_tel;delete row.client_adresse;sb.from('orders').insert(row).then(mkCode,()=>{});}else mkCode();},()=>{});
+  const code=String(Math.floor(1000+Math.random()*9000));
+  const s=shopById(shopId);myOrders=[{id,code,boutique:s?s.nom:'',total:row.total,date:new Date().toISOString()}].concat(myOrders.filter(o=>o.id!==id)).slice(0,30);lsSet('gbairai-mes-commandes',myOrders);
   Object.keys(orderIds).forEach(k=>{if(orderIds[k]===id)delete orderIds[k];});
   if(!single){cart=cart.filter(l=>{const p=prodById(l.pid);return p&&p.shop_id!==shopId;});saveCart();setTimeout(()=>render(true),400);}
 }
@@ -645,8 +724,8 @@ async function showShopShare(){const s=myShop();if(!s)return;const l=document.ge
   l.innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><p class="muted" style="margin:0">Création de l\'image…</p></div></div>';
   const url=await shopImage(s);
   l.innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><h2 style="font-size:17px">Image de ma boutique pour le statut</h2><img src="'+url+'" alt="Image de la boutique '+esc(s.nom)+'" style="border-radius:16px;width:100%;max-height:60vh;object-fit:contain"><a class="btn btn-v btn-s" href="'+url+'" download="'+esc(s.slug)+'-statut.jpg">Enregistrer l\'image</a><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Envoyer le lien</a><p class="small muted" style="margin:0">Publiez l\'image sur votre statut et mettez le lien en légende.</p><button type="button" class="btn btn-w btn-s" data-a="closeModal">Fermer</button></div></div>';}
-function showReport(shopId){const s=shopById(shopId);if(!s)return;
-  document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="report" data-id="'+s.id+'"><h2 style="font-size:17px">Signaler « '+esc(s.nom)+' »</h2><label class="lbl">Motif<select class="in" name="motif">'+['Arnaque ou vol','Produit non reçu','Faux produit / contrefaçon','Comportement inacceptable','Contenu choquant','Autre'].map(x=>'<option>'+x+'</option>').join('')+'</select></label><label class="lbl">Que s\'est-il passé ?<textarea class="in" name="details" rows="3" maxlength="1000"></textarea></label><label class="lbl">Votre contact (facultatif)<input class="in" name="contact" maxlength="60" placeholder="Numéro pour vous rappeler"></label><button class="btn btn-o btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-s" data-a="closeModal">Annuler</button></form></div>';}
+function showReport(shopId,motif,oid){const s=shopById(shopId);if(!s)return;
+  document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="report" data-id="'+s.id+'"><h2 style="font-size:17px">Signaler « '+esc(s.nom)+' »</h2><label class="lbl">Motif<select class="in" name="motif">'+['Arnaque ou vol','Produit non reçu','Faux produit / contrefaçon','Comportement inacceptable','Contenu choquant','Autre'].map(x=>'<option'+(x===motif?' selected':'')+'>'+x+'</option>').join('')+'</select></label><label class="lbl">Que s\'est-il passé ?<textarea class="in" name="details" rows="3" maxlength="1000">'+(oid?'Commande n° '+esc(String(oid).slice(0,8).toUpperCase())+' : ':'')+'</textarea></label><p class="small muted" style="margin:0">Vous avez une capture d\'écran ? Envoyez-la aussi au support sur WhatsApp.</p><label class="lbl">Votre contact (facultatif)<input class="in" name="contact" maxlength="60" placeholder="Numéro pour vous rappeler"></label><button class="btn btn-o btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-s" data-a="closeModal">Annuler</button></form></div>';}
 async function showShare(pid){
   const p=prodById(pid);if(!p)return;const l=document.getElementById('layer');const s=shopById(p.shop_id);
   l.innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><p class="muted" style="margin:0">Création de l\'image…</p></div></div>';
@@ -704,7 +783,11 @@ const A={
   blDel:t=>act(()=>q(sb.from('blacklist').delete().eq('phone',t.dataset.id)),'Numéro retiré'),
   rvToggle:t=>{const r=S.reviews.find(x=>x.id===t.dataset.id);act(()=>q(sb.from('reviews').update({visible:!r.visible}).eq('id',r.id)));},
   rvDel:t=>act(()=>q(sb.from('reviews').delete().eq('id',t.dataset.id)),'Avis supprimé'),
-  report:t=>showReport(t.dataset.id),
+  report:t=>showReport(t.dataset.id,t.dataset.motif,t.dataset.oid),
+  clientRep:t=>showClientRep(t.dataset.tel,t.dataset.id),
+  repOk:t=>act(()=>q(sb.from('reports').update({statut:'confirme'}).eq('id',t.dataset.id)),'Signalement confirmé'),
+  crSet:t=>act(()=>q(sb.from('client_reports').update({statut:t.dataset.v}).eq('id',t.dataset.id))),
+  crBlock:t=>act(async()=>{const r=S.clientReports.find(x=>x.id===t.dataset.id);await q(sb.from('blacklist').upsert({phone:waNum(r.client_tel),motif:'Client : '+r.motif}));await q(sb.from('client_reports').update({statut:'confirme'}).eq('id',r.id));},'Numéro bloqué'),
   pwdHelp:()=>{ui.pwdHelp=!ui.pwdHelp;render(true);},
   aReset:t=>act(async()=>{const r=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({shop_id:t.dataset.id})});
     let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||'Service indisponible. Vérifiez la clé dans Vercel.');ui.aPwd={shop:t.dataset.id,pw:j.password};},'Nouveau mot de passe créé'),
@@ -789,6 +872,7 @@ const FORMS={
     const keys=['nom','gerant','categorie','description','whatsapp','telegram','telephone','email','facebook','tiktok','ville','quartier','adresse','livraison_zones','livraison_frais'];
     if(admin)keys.push('verification','motif_refus','formule','statut');
     const row={};keys.forEach(k=>{if(k in d)row[k]=String(d[k]).trim();});
+    if('paiement_livraison' in d)row.paiement_livraison=d.paiement_livraison==='oui';
     if(admin&&'vedette' in d)row.vedette=d.vedette==='true';
     if(admin&&d.slug){const sl=slugify(d.slug);if(S.shops.some(x=>x.slug===sl&&x.id!==id))throw new Error('Ce lien est déjà pris.');row.slug=sl;}
     await q(sb.from('shops').update(row).eq('id',id));
@@ -804,6 +888,13 @@ const FORMS={
     await q(sb.from('payments').insert({shop_id:s.id,type:d.type,duree:Math.max(1,Math.min(12,+ui.pay.duree||1)),montant:Math.round(n0(d.montant)),operateur:d.operateur,telephone:String(d.telephone).trim(),reference:String(d.reference).trim()}));},'Paiement envoyé. Activation après vérification.'),
   pwd:d=>act(async()=>{if(d.password!==d.password2)throw new Error('Les deux mots de passe sont différents.');const r=await sb.auth.updateUser({password:d.password});if(r.error)throw r.error;},'Mot de passe changé'),
   client:()=>toast('Informations enregistrées'),
+  livreur:(d,f)=>act(()=>q(sb.from('orders').update({livreur_nom:String(d.livreur_nom||'').trim().slice(0,60),livreur_tel:String(d.livreur_tel||'').trim().slice(0,30),eta:String(d.eta||'').trim().slice(0,60)}).eq('id',f.dataset.id)),'Livraison mise à jour'),
+  codeLiv:(d,f)=>act(async()=>{const r=await q(sb.rpc('confirmer_livraison',{oid:f.dataset.id,c:String(d.code||'').trim()}));
+    const m={ok:null,faux:'Code faux. Vérifiez avec le client.',bloque:'Trop d\'essais : code bloqué. Contactez le support.',aucun:'Cette commande n\'a pas de code (ancienne commande). Utilisez le bouton « Livrée ».',interdit:'Action non autorisée.',introuvable:'Commande introuvable.'};
+    if(r!=='ok')throw new Error(m[r]||'Erreur');},'Livraison confirmée ✔'),
+  clientRep:(d,f)=>act(async()=>{await q(sb.from('client_reports').insert({shop_id:f.dataset.id,client_tel:f.dataset.tel,motif:d.motif,details:String(d.details||'').trim().slice(0,600)}));document.getElementById('layer').innerHTML='';},'Signalement envoyé à l\'administrateur'),
+  verifier:d=>{const tel=String(d.tel||'').trim();ui.verif={tel,res:undefined};render(true);sb.rpc('verifier_numero',{tel}).then(r=>{ui.verif={tel,res:(r.data&&r.data[0])||(r.error?null:{bloque:false,signalements:0})};render(true);},()=>{ui.verif={tel,res:null};render(true);});},
+  trackNum:d=>{sb.rpc('suivi_par_numero',{num:String(d.num||'').trim(),tel:String(d.tel||'').trim()}).then(r=>{if(r.data)location.hash='suivi-'+r.data;else toast('Commande introuvable. Vérifiez le numéro et le téléphone.');},()=>toast('Pas de connexion internet.'));},
   banner:d=>act(async()=>{const row={titre:String(d.titre).trim(),sous_titre:String(d.sous_titre||'').trim(),lien:String(d.lien||'').trim(),shop_id:d.shop_id||null,debut:d.debut||today(),fin:d.fin||null,couleur:Math.floor(Math.random()*6),actif:true};
     if(ui.bannerImg)row.image=await uploadPhoto(ui.bannerImg.blob);await q(sb.from('banners').insert(row));ui.bannerImg=undefined;},'Bannière publiée'),
   blacklist:d=>act(async()=>{const ph=waNum(d.phone);if(ph.length<12)throw new Error('Numéro invalide.');await q(sb.from('blacklist').upsert({phone:ph,motif:String(d.motif||'').trim()}));},'Numéro bloqué')
@@ -812,7 +903,7 @@ document.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();
   const d={};new FormData(f).forEach((v,k)=>d[k]=v);const fn=FORMS[f.dataset.f];if(fn)fn(d,f);
 });
-window.addEventListener('hashchange',()=>{ui.confirm=null;ui.taille=null;document.getElementById('layer').innerHTML='';render();});
+window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;document.getElementById('layer').innerHTML='';render();});
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
 window.GB={S:S,shopById:shopById,prodById:prodById};

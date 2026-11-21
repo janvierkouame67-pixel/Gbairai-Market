@@ -47,7 +47,8 @@
 
   var A={
     commander:['Comment commander ?','C\'est simple : ajoutez les articles au panier, écrivez votre nom et votre quartier, puis appuyez sur « Commander sur WhatsApp ». Le message part tout seul chez le vendeur, qui vous répond pour la livraison.'],
-    suivi:['Suivre ma commande','Dans le message envoyé au vendeur, il y a un lien « Suivi ». Ouvrez-le pour voir si votre commande est confirmée, en préparation, en route ou livrée. Vos dernières commandes sont aussi dans le Panier.'],
+    suivi:['Suivre ma commande','Touchez le camion 🚚 en haut de l\'accueil, ou <a href="#commandes">ouvrez Mes commandes</a>. Vous voyez chaque étape, le livreur et votre <b>code secret</b> : donnez-le au livreur seulement quand vous avez l\'article en main.'],
+    arnaque:['Éviter les arnaques','Regardez l\'<b>indice de confiance</b> sur la page de la boutique, préférez le paiement à la livraison, et <a href="#verifier">vérifiez le numéro</a> avant d\'envoyer de l\'argent.'],
     vendeur:['Devenir vendeur','Appuyez sur « Je suis vendeur », entrez votre numéro et un mot de passe : votre boutique est créée en 2 minutes, gratuitement. Ensuite, ajoutez vos produits avec photos.'],
     paiement:['Payer un abonnement','Dans votre espace vendeur → Abonnement, choisissez Pro, Vedette ou Bannière, payez par Orange, MTN, Moov ou Wave, puis envoyez la référence. L\'équipe valide rapidement.'],
     probleme:['Signaler un problème','Sur la page de la boutique, appuyez sur « Signaler » en bas. Ou écrivez-nous directement sur WhatsApp ci-dessous.']
