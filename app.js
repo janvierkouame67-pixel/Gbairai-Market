@@ -61,14 +61,20 @@ function monthOf(d){return String(d).slice(0,7);}
 const S={settings:{nom:'Gbairai Market',limite_gratuit:20,quartiers:[],categories:[]},shops:[],products:[],orders:[],txs:[],priv:{},user:null,role:'visiteur',loaded:false,error:null};
 let cart=[];try{cart=JSON.parse(localStorage.getItem(CART_KEY)||'[]')||[];}catch(e){cart=[];}
 function saveCart(){try{localStorage.setItem(CART_KEY,JSON.stringify(cart));}catch(e){}}
-const ui={q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
 const catName=id=>{const c=(S.settings.categories||[]).find(c=>c.id===id);return c?c.nom:'Autre';};
 const shopProducts=id=>S.products.filter(p=>p.shop_id===id);
 const myShop=()=>S.user?S.shops.find(s=>s.owner===S.user.id):null;
-const shopUrl=s=>location.origin+location.pathname+'#boutique-'+s.slug;
+const isLocal=()=>!/^https?:$/.test(location.protocol)||/^(localhost|127\.)/.test(location.hostname);
+const shopUrl=s=>isLocal()?location.origin+location.pathname+'#boutique-'+s.slug:location.origin+'/b/'+encodeURIComponent(s.slug);
+const prodUrl=p=>isLocal()?location.origin+location.pathname+'#produit-'+p.id:location.origin+'/p/'+p.id;
+function shopShareText(s){const n=shopProducts(s.id).filter(p=>p.visible).length;
+  return '🛍️ *'+s.nom+'* est sur '+(S.settings.nom||'Gbairai Market')+' !\n'+(s.verification==='verifie'?'✅ Boutique vérifiée\n':'')+'📍 '+(s.quartier||'Abidjan')+(n?' · '+n+' article'+(n>1?'s':''):'')+'\n🚚 Commande directe sur WhatsApp\n\n👉 '+shopUrl(s);}
+function prodShareText(p){const s=shopById(p.shop_id);
+  return '🔥 *'+p.nom+'*\n💰 '+fmtN(p.prix)+' FCFA'+(p.stock>0&&p.stock<=3?' · plus que '+p.stock+' !':'')+'\n🏪 '+(s?s.nom+' · '+s.quartier:'')+'\n\n👉 Commandez ici : '+prodUrl(p);}
 const cartCount=()=>cart.reduce((a,l)=>a+l.qty,0);
 const isAdmin=()=>S.role==='admin';
 
@@ -123,6 +129,29 @@ const verifBadge=s=>s.verification==='verifie'?VERIF:'';
 function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="logo" href="#accueil"><span class="logo-mark img"><img src="icons/logo.svg" alt=""></span><span class="logo-name">'+esc(n)+'<i>.</i></span></a>';}
 function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label="'+(label||'Retour')+'">'+ic('back')+'</a>';}
 
+/* ---------- GRAPHIQUES ---------- */
+const DAY=864e5;
+function dayKey(d){const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+function ago(d){const m=Math.round((Date.now()-new Date(d))/6e4);return m<1?'à l\'instant':m<60?'il y a '+m+' min':m<1440?'il y a '+Math.round(m/60)+' h':'il y a '+Math.round(m/1440)+' j';}
+function ticker(items,dark){if(!items.length)return '';const one=items.map(t=>'<span class="tk-item">'+t+'</span>').join('<span class="tk-dot" aria-hidden="true">✦</span>');
+  const dur=Math.max(18,items.length*5);
+  return '<div class="ticker'+(dark?' dark':'')+'" role="marquee" aria-label="Infos en direct"><div class="tk-track" style="animation-duration:'+dur+'s">'+one+'<span class="tk-dot" aria-hidden="true">✦</span>'+one+'<span class="tk-dot" aria-hidden="true">✦</span></div></div>';}
+function inPer(d,days){return !days||Date.now()-new Date(d)<days*DAY;}
+function trend(cur,prev){if(!prev)return cur?'<em class="up">nouveau</em>':'';const v=Math.round((cur-prev)/prev*100);return '<em class="'+(v>=0?'up':'down')+'">'+(v>=0?'▲ ':'▼ ')+Math.abs(v)+' %</em>';}
+function kpi(v,l,t,c){return '<div class="kpi'+(c?' '+c:'')+'"><span>'+l+'</span><b class="num">'+v+'</b>'+(t||'')+'</div>';}
+function vchart(days,orders){const n=Math.min(days||30,30),keys=[];for(let i=n-1;i>=0;i--)keys.push(dayKey(Date.now()-i*DAY));
+  const val=keys.map(k=>orders.filter(o=>o.statut==='confirmee'&&dayKey(o.created_at)===k).reduce((a,o)=>a+o.total,0));
+  const cnt=keys.map(k=>orders.filter(o=>dayKey(o.created_at)===k).length);
+  const m=Math.max(1,...val),tot=val.reduce((a,b)=>a+b,0);
+  return '<section class="card stack"><div class="row between"><h2 style="font-size:17px">Ventes confirmées par jour</h2><b class="num small">'+F(tot)+'</b></div><div class="vchart" style="--n:'+n+'">'+keys.map((k,i)=>'<div class="vcol" title="'+k.slice(8)+'/'+k.slice(5,7)+' : '+F(val[i])+' · '+cnt[i]+' commande(s)"><span style="height:'+Math.max(val[i]?4:0,val[i]/m*100)+'%"></span>'+(cnt[i]&&!val[i]?'<i></i>':'')+'</div>').join('')+'</div><div class="row between small muted"><span>'+keys[0].slice(8)+'/'+keys[0].slice(5,7)+'</span><span>Aujourd\'hui</span></div></section>';}
+function donut(title,parts){const tot=parts.reduce((a,x)=>a+x[1],0);let acc=0;
+  const g=tot?parts.map(x=>{const a=acc/tot*360;acc+=x[1];return x[2]+' '+a+'deg '+(acc/tot*360)+'deg';}).join(','):'#EEE9FB 0deg 360deg';
+  return '<section class="card stack"><h2 style="font-size:17px">'+title+'</h2><div class="row" style="gap:18px"><div class="donut" style="background:conic-gradient('+g+')"><b class="num">'+tot+'</b></div><div class="stack" style="gap:6px;flex:1;min-width:0">'+parts.map(x=>'<div class="row small between"><span class="row" style="gap:6px"><i class="sw" style="background:'+x[2]+'"></i>'+esc(x[0])+'</span><b class="num">'+x[1]+(tot?' <span class="muted" style="font-weight:500">('+Math.round(x[1]/tot*100)+' %)</span>':'')+'</b></div>').join('')+'</div></div></section>';}
+function rankList(title,rows,empty){return '<section class="card stack"><h2 style="font-size:17px">'+title+'</h2>'+(rows.length?rows.map((r,i)=>'<div class="row between rank"><span class="row" style="gap:10px;min-width:0"><b class="rk rk'+i+'">'+(i+1)+'</b><span class="ell">'+r[0]+'</span></span><b class="num small" style="white-space:nowrap">'+r[1]+'</b></div>').join(''):'<p class="muted" style="margin:0">'+(empty||'Pas encore de données.')+'</p>')+'</section>';}
+function topProducts(orders,k){const m={};orders.filter(o=>o.statut!=='annulee').forEach(o=>(o.items||[]).forEach(it=>{const key=it.pid||it.nom;m[key]=m[key]||{nom:it.nom,q:0,v:0};m[key].q+=n0(it.qty);m[key].v+=n0(it.qty)*n0(it.prix);}));
+  return Object.values(m).sort((a,b)=>b.q-a.q).slice(0,k||5);}
+function perChips(cur){return '<div class="row wrapx" style="gap:6px">'+[['7','7 jours'],['30','30 jours'],['0','Tout']].map(x=>'<button type="button" class="chip'+(String(cur)===x[0]?' on':'')+'" data-a="per" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';}
+
 /* ---------- CLIENT ---------- */
 function vAccueil(){
   const qs=(S.settings.quartiers||[]).slice(0,8);
@@ -131,8 +160,16 @@ function vAccueil(){
   '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques d\'Abidjan, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+esc(x)+'</button>').join('')+'</div>'+
-  '<div class="cats">'+cats+'</div><div id="results" class="stack">'+results()+'</div></div>';
+  homeTicker()+'<div class="cats">'+cats+'</div><div id="results" class="stack">'+results()+'</div></div>';
 }
+function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
+  const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
+  const it=[];
+  act.filter(s=>s.vedette).slice(0,4).forEach(s=>it.push('⭐ <a href="#boutique-'+esc(s.slug)+'">'+esc(s.nom)+'</a> · '+esc(s.quartier)));
+  vis.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,6).forEach(p=>it.push('🆕 <a href="#produit-'+p.id+'">'+esc(p.nom)+'</a> <b>'+F(p.prix)+'</b>'));
+  vis.filter(p=>p.stock<=3).slice(0,3).forEach(p=>it.push('⏳ Plus que '+p.stock+' : <a href="#produit-'+p.id+'">'+esc(p.nom)+'</a>'));
+  if(act.length)it.push('🏪 '+act.length+' boutique'+(act.length>1?'s':'')+' · '+vis.length+' articles · commande directe sur WhatsApp');
+  return ticker(it);}
 function results(){
   const qq=ui.q.trim().toLowerCase();
   const ok=s=>s.statut==='actif'&&(ui.quartier==='Tous'||s.quartier===ui.quartier);
@@ -173,7 +210,7 @@ function vProduit(id){
   const tailles=(p.tailles||'').split(',').map(t=>t.trim()).filter(Boolean);
   if(tailles.length&&!tailles.includes(ui.taille))ui.taille=tailles[0];if(!tailles.length)ui.taille=null;
   const single=[{p,qty:1,taille:ui.taille}];
-  return '<div class="wrap"><div class="row between">'+back('#boutique-'+esc(s.slug),'Retour à la boutique')+'<button type="button" class="icon-btn" data-a="share" data-id="'+p.id+'" aria-label="Image pour le statut">'+ic('image')+'</button></div>'+
+  return '<div class="wrap"><div class="row between">'+back('#boutique-'+esc(s.slug),'Retour à la boutique')+'<div class="row" style="gap:8px"><a class="icon-btn" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(prodShareText(p))+'" aria-label="Partager ce produit sur WhatsApp">'+ic('share')+'</a><button type="button" class="icon-btn" data-a="share" data-id="'+p.id+'" aria-label="Image pour le statut">'+ic('image')+'</button></div></div>'+
   '<div style="border-radius:26px;overflow:hidden;box-shadow:0 30px 40px -24px rgba(27,16,51,.6)">'+tile(p,320,140)+'</div>'+
   '<div class="card stack"><div class="row between" style="align-items:flex-start"><div style="min-width:0"><h1 style="font-size:21px">'+esc(p.nom)+'</h1><a class="small" href="#boutique-'+esc(s.slug)+'">'+esc(s.nom)+' · '+esc(s.quartier)+'</a></div><div class="price num" style="font-size:20px;white-space:nowrap">'+F(p.prix)+'</div></div>'+
   (p.description?'<div><h2 style="font-size:13px;font-family:var(--body);font-weight:700;margin-bottom:6px">Description</h2><p style="margin:0;line-height:1.55;color:#3D3256;white-space:pre-line">'+esc(p.description)+'</p></div>':'')+
@@ -228,9 +265,20 @@ function vvAccueil(s){
   const tx=S.txs.filter(t=>t.shop_id===s.id&&monthOf(t.date)===monthOf(today()));
   const rec=tx.filter(t=>t.type==='recette').reduce((a,t)=>a+t.montant,0),dep=tx.filter(t=>t.type==='depense').reduce((a,t)=>a+t.montant,0);
   const low=prods.filter(p=>p.stock>0&&p.stock<=3).length,out=prods.filter(p=>p.stock<=0).length;
-  return '<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
+  const myO=S.orders.filter(o=>o.shop_id===s.id),D=ui.per,Op=myO.filter(o=>inPer(o.created_at,D)),cf=Op.filter(o=>o.statut==='confirmee');
+  const caP=cf.reduce((a,o)=>a+o.total,0),todayO=myO.filter(o=>dayKey(o.created_at)===dayKey(Date.now()));
+  const tk=[];
+  tk.push('📅 Aujourd\'hui : '+todayO.length+' commande'+(todayO.length>1?'s':'')+' · '+F(todayO.filter(o=>o.statut==='confirmee').reduce((a,o)=>a+o.total,0)));
+  myO.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,5).forEach(o=>tk.push((o.statut==='confirmee'?'💰 Vente':o.statut==='annulee'?'✖️ Annulée':'🛒 Nouvelle commande')+' · '+F(o.total)+' · '+ago(o.created_at)));
+  prods.filter(p=>p.stock>0&&p.stock<=3).slice(0,4).forEach(p=>tk.push('⚠️ Stock bas : '+esc(p.nom)+' ('+p.stock+')'));
+  topProducts(myO,2).forEach(p=>tk.push('🔥 Votre best-seller : '+esc(p.nom)));
+  const dash=ticker(tk,true)+'<div class="row between wrapx" style="gap:10px"><h2 style="font-size:17px">Mes statistiques</h2>'+perChips(D)+'</div>'+
+  '<div class="kpis">'+kpi(F(caP),'Ventes confirmées','','hero')+kpi(Op.length,'Commandes')+kpi((Op.length?Math.round(cf.length/Op.length*100):0)+' %','Taux de confirmation')+kpi(cf.length?F(caP/cf.length):'0 F','Panier moyen')+kpi(F(prods.reduce((a,p)=>a+p.prix*Math.max(0,p.stock),0)),'Valeur du stock')+kpi(Op.filter(o=>o.statut==='envoyee').length,'À confirmer')+'</div>'+
+  vchart(D||30,myO)+'<div class="gridf">'+rankList('Mes produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]),'Partagez votre lien pour recevoir vos premières commandes.')+
+  donut('Mes commandes',[['À confirmer',Op.filter(o=>o.statut==='envoyee').length,'#FF7A1A'],['Confirmées',cf.length,'#0E7A5F'],['Annulées',Op.filter(o=>o.statut==='annulee').length,'#C9C2DA']])+'</div>';
+  return dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
   (s.verification!=='verifie'?'<div class="warn"><b>'+(s.verification==='refuse'?'Vérification refusée.':'Vérification en attente.')+'</b> '+(s.verification==='refuse'&&s.motif_refus?esc(s.motif_refus)+' ':'')+'Ajoutez votre numéro de CNI dans « Réglages ». Le badge bleu rassure les clients.</div>':'<div class="note">Votre boutique est vérifiée '+VERIF+'</div>')+
-  '<div class="card stack"><h2 style="font-size:16px">Mon lien à partager</h2><div class="in ell" style="display:flex;align-items:center;font-size:13px">'+esc(shopUrl(s))+'</div><div class="grid2"><button type="button" class="btn btn-v btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16,'#fff')+'Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent('Découvrez ma boutique '+s.nom+' : '+shopUrl(s))+'">'+ic('wa',16,'#fff')+'Partager</a></div></div>'+
+  '<div class="card stack"><h2 style="font-size:16px">Mon lien à partager</h2><div class="in ell" style="display:flex;align-items:center;font-size:13px">'+esc(shopUrl(s))+'</div><div class="grid2"><button type="button" class="btn btn-v btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16,'#fff')+'Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Partager</a></div></div>'+
   ((low||out)?'<div class="warn">'+(low?low+' produit(s) en stock bas. ':'')+(out?out+' en rupture.':'')+' <button type="button" class="btn btn-w btn-s" data-a="vtab" data-id="stock" style="margin-left:6px">Voir le stock</button></div>':'')+
   '<div class="card row between"><div><b>Formule '+(s.formule==='pro'?'Pro':'Gratuite')+'</b><div class="small muted">'+(s.formule==='pro'?'Produits illimités':'Jusqu\'à '+S.settings.limite_gratuit+' produits'+(S.settings.prix_pro?' · Pro : '+esc(S.settings.prix_pro)+' F / mois':''))+'</div></div>'+(s.formule==='pro'?'<span class="badge b-orange">Pro</span>':'<span class="badge b-violet">Gratuit</span>')+'</div>'+
   '<button type="button" class="btn btn-v btn-block" data-a="newProd">'+ic('plus',20,'#fff',2.6)+'Ajouter un produit</button>';
@@ -306,13 +354,37 @@ function vAdmin(){
   return h+({tableau:aTableau,vendeurs:aVendeurs,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
-  const L=S.shops,stat=(v,l,c)=>'<div class="stat'+(c?' '+c:'')+'"><b class="num">'+v+'</b><span>'+l+'</span></div>';
-  const conf=S.orders.filter(o=>o.statut==='confirmee');
+  const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
+  const prevO=D?O.filter(o=>{const t=Date.now()-new Date(o.created_at);return t>=D*DAY&&t<2*D*DAY;}):[];
+  const sum=a=>a.filter(o=>o.statut==='confirmee').reduce((x,o)=>x+o.total,0);
+  const ca=sum(Op),conf=Op.filter(o=>o.statut==='confirmee').length,rate=Op.length?Math.round(conf/Op.length*100):0;
+  const newShops=L.filter(s=>inPer(s.created_at,D)).length,prevShops=D?L.filter(s=>{const t=Date.now()-new Date(s.created_at);return t>=D*DAY&&t<2*D*DAY;}).length:0;
+  const out=S.products.filter(p=>p.stock<=0).length,stockV=S.products.reduce((a,p)=>a+p.prix*Math.max(0,p.stock),0);
+  const sName=id=>{const s=shopById(id);return s?s.nom:'Boutique';};
+  const tk=[];
+  O.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,6).forEach(o=>tk.push((o.statut==='confirmee'?'💰':o.statut==='annulee'?'✖️':'🛒')+' <b>'+esc(sName(o.shop_id))+'</b> · '+F(o.total)+' · '+ago(o.created_at)));
+  L.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,3).forEach(s=>tk.push('🏪 Nouvelle boutique : <b>'+esc(s.nom)+'</b> ('+esc(s.quartier)+') · '+ago(s.created_at)));
+  const wait=L.filter(s=>s.verification==='attente');if(wait.length)tk.push('🪪 '+wait.length+' vérification'+(wait.length>1?'s':'')+' en attente');
+  if(out)tk.push('📦 '+out+' produit'+(out>1?'s':'')+' en rupture');
+  topProducts(O,3).forEach(p=>tk.push('🔥 Top : '+esc(p.nom)+' ('+p.q+' vendus)'));
+  const byShop=L.map(s=>[s,sum(Op.filter(o=>o.shop_id===s.id)),Op.filter(o=>o.shop_id===s.id).length]).filter(x=>x[2]).sort((a,b)=>b[1]-a[1]||b[2]-a[2]).slice(0,5);
   const byQ=(S.settings.quartiers||[]).map(x=>[x,L.filter(s=>s.quartier===x).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]),mx=Math.max(1,...byQ.map(x=>x[1]));
-  const byC=(S.settings.categories||[]).map(c=>[c.nom,S.products.filter(p=>p.categorie===c.id).length]).filter(x=>x[1]),mc=Math.max(1,...byC.map(x=>x[1]));
-  const bars=(arr,m)=>arr.length?arr.map(x=>'<div class="row small"><span style="width:90px">'+esc(x[0])+'</span><span class="bar"><span style="width:'+(x[1]/m*100)+'%"></span></span><b class="num" style="width:24px;text-align:right">'+x[1]+'</b></div>').join(''):'<p class="muted" style="margin:0">Pas encore de données.</p>';
-  return '<div class="gridf" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))">'+stat(L.filter(s=>s.statut==='actif').length,'Vendeurs actifs','dark')+stat(L.filter(s=>s.verification==='attente').length,'Vérifications en attente')+stat(L.filter(s=>s.formule==='pro').length,'Abonnés Pro')+stat(S.products.length,'Produits')+stat(S.orders.length,'Commandes envoyées')+stat(fmtN(conf.reduce((a,o)=>a+o.total,0))+' F','Ventes confirmées')+'</div>'+
-  '<div class="gridf"><section class="card stack"><h2 style="font-size:17px">Vendeurs par quartier</h2>'+bars(byQ,mx)+'</section><section class="card stack"><h2 style="font-size:17px">Produits par catégorie</h2>'+bars(byC,mc)+'</section><section class="card stack"><h2 style="font-size:17px">À vérifier</h2>'+(L.filter(s=>s.verification==='attente').map(s=>'<div class="row between"><span class="row">'+avatar(s,34)+esc(s.nom)+'</span><button type="button" class="btn btn-g btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir</button></div>').join('')||'<p class="muted" style="margin:0">Rien en attente.</p>')+'</section></div>';
+  const byC=(S.settings.categories||[]).map(c=>[c.nom,S.products.filter(p=>p.categorie===c.id).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]),mc=Math.max(1,...byC.map(x=>x[1]));
+  const bars=(arr,m)=>arr.length?arr.map(x=>'<div class="row small"><span class="ell" style="width:110px">'+esc(x[0])+'</span><span class="bar"><span style="width:'+(x[1]/m*100)+'%"></span></span><b class="num" style="width:28px;text-align:right">'+x[1]+'</b></div>').join(''):'<p class="muted" style="margin:0">Pas encore de données.</p>';
+  return ticker(tk,true)+
+  '<div class="row between wrapx" style="gap:10px"><h2 style="font-size:19px">Vue d\'ensemble</h2>'+perChips(D)+'</div>'+
+  '<div class="kpis">'+kpi(F(ca),'Chiffre d\'affaires confirmé',D?trend(ca,sum(prevO)):'','hero')+kpi(Op.length,'Commandes reçues',D?trend(Op.length,prevO.length):'')+kpi(rate+' %','Taux de confirmation')+kpi(conf?F(ca/conf):'0 F','Panier moyen')+
+  kpi(L.filter(s=>s.statut==='actif').length,'Vendeurs actifs')+kpi(newShops,'Nouveaux vendeurs',D?trend(newShops,prevShops):'')+kpi(L.filter(s=>s.formule==='pro').length,'Abonnés Pro')+kpi(wait.length,'Vérifications en attente',wait.length?'<em class="down">à traiter</em>':'')+
+  kpi(S.products.length,'Produits')+kpi(out,'En rupture')+kpi(F(stockV),'Valeur du stock')+kpi(L.filter(s=>s.statut==='suspendu').length,'Boutiques suspendues')+'</div>'+
+  vchart(D||30,O)+
+  '<div class="gridf">'+donut('Commandes par statut',[['Envoyées',Op.filter(o=>o.statut==='envoyee').length,'#FF7A1A'],['Confirmées',conf,'#0E7A5F'],['Annulées',Op.filter(o=>o.statut==='annulee').length,'#C9C2DA']])+
+  donut('Canal de commande',[['WhatsApp',Op.filter(o=>o.canal==='whatsapp').length,'#25A366'],['Telegram',Op.filter(o=>o.canal==='telegram').length,'#3B82F6']])+
+  donut('Vendeurs',[['Vérifiés',L.filter(s=>s.verification==='verifie').length,'#3B82F6'],['En attente',wait.length,'#F59E0B'],['Refusés',L.filter(s=>s.verification==='refuse').length,'#C9C2DA']])+
+  donut('Formules',[['Gratuit',L.filter(s=>s.formule!=='pro').length,'#8B5CF6'],['Pro',L.filter(s=>s.formule==='pro').length,'#FF7A1A']])+
+  rankList('Meilleures boutiques',byShop.map(x=>[avatar(x[0],30)+esc(x[0].nom),F(x[1])+' · '+x[2]+' cmd']))+
+  rankList('Produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]))+
+  '<section class="card stack"><h2 style="font-size:17px">Vendeurs par quartier</h2>'+bars(byQ,mx)+'</section><section class="card stack"><h2 style="font-size:17px">Produits par catégorie</h2>'+bars(byC,mc)+'</section>'+
+  '<section class="card stack"><h2 style="font-size:17px">À vérifier</h2>'+(wait.map(s=>'<div class="row between"><span class="row">'+avatar(s,34)+esc(s.nom)+'</span><button type="button" class="btn btn-g btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir</button></div>').join('')||'<p class="muted" style="margin:0">Rien en attente.</p>')+'</section></div>';
 }
 const badgeVerif=s=>s.verification==='verifie'?'<span class="badge b-blue">Vérifié</span>':s.verification==='refuse'?'<span class="badge b-grey">Refusé</span>':'<span class="badge b-amber">En attente</span>';
 function aVendeurs(){
@@ -466,6 +538,7 @@ const A={
     for(const it of (o.items||[])){const p=prodById(it.pid);if(p)await q(sb.from('products').update({stock:Math.max(0,p.stock-it.qty)}).eq('id',p.id));}
     await q(sb.from('txs').insert({shop_id:o.shop_id,type:'recette',montant:o.total,libelle:'Vente · '+(o.items||[]).map(i=>i.qty+' '+i.nom).join(', ').slice(0,120),date:today()}));},'Vente confirmée : caisse et stock mis à jour'),
   cancelOrder:t=>act(()=>q(sb.from('orders').update({statut:'annulee'}).eq('id',t.dataset.id))),
+  per:t=>{ui.per=Number(t.dataset.id);render(true);},
   atab:t=>{ui.aTab=t.dataset.id;ui.adminShop=null;ui.confirm=null;render();},
   aFilter:t=>{ui.aFilter=t.dataset.id;render(true);},
   aOpen:t=>{ui.aTab='vendeurs';ui.adminShop=t.dataset.id;ui.confirm=null;render();},
