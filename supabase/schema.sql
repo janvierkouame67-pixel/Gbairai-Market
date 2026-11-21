@@ -702,3 +702,16 @@ create policy "client: modification" on public.client_data for update using (use
 revoke all on public.push_subs, public.push_log from anon, authenticated;
 grant select, insert, update on public.client_data to authenticated;
 grant execute on function public.push_save(text,text,text,uuid[],uuid[]), public.push_remove(text), public.nb_abonnes(uuid) to anon, authenticated;
+
+-- ===== Mise à jour 6 (incluse) =====
+
+-- Dernière fois que le vendeur a ouvert son espace
+alter table public.shops add column if not exists vu_le timestamptz;
+
+-- Appelée par le site quand le vendeur est connecté (toutes les 2 minutes)
+create or replace function public.je_suis_la() returns void
+language sql security definer set search_path = public as $$
+  update shops set vu_le = now() where owner = auth.uid() and (vu_le is null or vu_le < now() - interval '1 minute');
+$$;
+revoke execute on function public.je_suis_la() from public, anon;
+grant execute on function public.je_suis_la() to authenticated;

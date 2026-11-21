@@ -218,6 +218,7 @@ async function loadAll(){
     S.error=null;
   }catch(e){S.error=errMsg(e);}
   S.loaded=true;
+  ping();
   if(S.user&&!S.synced&&!S.syncing){S.syncing=true;clientSync().finally(()=>{S.syncing=false;});}
   if(!S.user){S.synced=false;S.cnom='';}
   cart=cart.filter(l=>prodById(l.pid));saveCart();
@@ -262,6 +263,10 @@ function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label
 /* ---------- GRAPHIQUES ---------- */
 const DAY=864e5;
 function dayKey(d){const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+const enLigne=s=>!!(s&&s.vu_le&&Date.now()-new Date(s.vu_le)<5*6e4);
+function presenceHTML(s,admin){if(enLigne(s))return '<span class="pres on">En ligne</span>';
+  if(s.vu_le&&(admin||Date.now()-new Date(s.vu_le)<864e5))return '<span class="pres">'+(admin?'Vu ':'Actif ')+ago(s.vu_le)+'</span>';
+  return admin?'<span class="pres off">Jamais connecté</span>':'';}
 function ago(d){const m=Math.round((Date.now()-new Date(d))/6e4);return m<1?'à l\'instant':m<60?'il y a '+m+' min':m<1440?'il y a '+Math.round(m/60)+' h':'il y a '+Math.round(m/1440)+' j';}
 function ticker(items,dark){if(!items.length)return '';const one=items.map(t=>'<span class="tk-item">'+t+'</span>').join('<span class="tk-dot" aria-hidden="true">✦</span>');
   const dur=Math.max(18,items.length*5);
@@ -383,7 +388,7 @@ function results(){
   return h;
 }
 function shopCard(s){const n=shopProducts(s.id).filter(p=>p.visible).length;
-  return '<a class="shop" href="#boutique-'+esc(s.slug)+'"><div class="shop-cover" style="background:'+lin(s.couleur)+'">'+avatar(s)+(s.vedette?'<span class="badge b-orange" style="position:absolute;right:10px;top:10px">Vedette</span>':'')+'</div><div class="shop-body"><div class="shop-name">'+esc(s.nom)+verifBadge(s)+'</div><div class="muted small" style="margin-top:4px">'+esc(place(s))+' · '+esc(catName(s.categorie))+' · '+n+' produit'+(n>1?'s':'')+'</div>'+ratingHTML(s.id,true)+'</div></a>';}
+  return '<a class="shop" href="#boutique-'+esc(s.slug)+'"><div class="shop-cover" style="background:'+lin(s.couleur)+'">'+avatar(s)+(s.vedette?'<span class="badge b-orange" style="position:absolute;right:10px;top:10px">Vedette</span>':'')+'</div><div class="shop-body"><div class="shop-name">'+esc(s.nom)+verifBadge(s)+'</div>'+(enLigne(s)?'<span class="pres on">En ligne</span>':'')+'<div class="muted small" style="margin-top:4px">'+esc(place(s))+' · '+esc(catName(s.categorie))+' · '+n+' produit'+(n>1?'s':'')+'</div>'+ratingHTML(s.id,true)+'</div></a>';}
 function pCard(p){const inCart=cart.some(l=>l.pid===p.id),pr=promoOn(p);
   return '<div class="pcard"><div class="ptile"><a href="#produit-'+p.id+'">'+tile(p,120)+'</a>'+(pr?'<span class="pct">-'+pct(p)+' %</span>':'')+(pr&&p.promo_fin?'<span class="flash">'+ic('bolt',11,'#1B1033',2.4)+cdHTML(p.promo_fin)+'</span>':'')+favBtn(p.id)+'</div><a href="#produit-'+p.id+'"><div class="pname">'+esc(p.nom)+'</div></a><div class="pfoot"><span class="pp">'+priceHTML(p)+'</span>'+
   (p.stock>0?'<button type="button" class="add'+(inCart?' in':'')+'" data-a="add" data-id="'+p.id+'" aria-label="'+(inCart?'Déjà dans le panier':'Ajouter au panier')+'">'+ic(inCart?'check':'plus',18,'#fff',2.6)+'</button>':'<span class="badge b-grey">Rupture</span>')+'</div></div>';}
@@ -403,7 +408,7 @@ function vBoutique(slug){
   const lines=cart.filter(l=>{const p=prodById(l.pid);return p&&p.shop_id===s.id;});
   const tot=lines.reduce((a,l)=>a+prix(prodById(l.pid))*l.qty,0);
   return '<div class="wrap"><div class="cover" style="background:'+lin(s.couleur)+'"><span class="ball o" style="right:30px;top:40px;width:70px;height:70px;border-radius:22px;transform:rotate(18deg)"></span><div class="row between" style="padding:16px max(16px,env(safe-area-inset-left,0px))">'+back('#accueil')+'<button type="button" class="icon-btn" data-a="copy" data-text="'+esc(shopUrl(s))+'" aria-label="Copier le lien de la boutique">'+ic('share')+'</button></div></div>'+
-  '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+ratingHTML(s.id)+'</div></div>'+
+  '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+presenceHTML(s)+ratingHTML(s.id)+'</div></div>'+
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
   '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div>'+followHTML(s)+'</div>'+
@@ -727,11 +732,11 @@ function aTableau(){
 const badgeVerif=s=>s.verification==='verifie'?'<span class="badge b-blue">Vérifié</span>':s.verification==='refuse'?'<span class="badge b-grey">Refusé</span>':'<span class="badge b-amber">En attente</span>';
 function aVendeurs(){
   const qq=ui.aQ.toLowerCase();
-  const list=S.shops.filter(s=>(ui.aFilter==='tous'||(ui.aFilter==='attente'&&s.verification==='attente')||(ui.aFilter==='pro'&&s.formule==='pro')||(ui.aFilter==='suspendu'&&s.statut==='suspendu'))&&(!qq||(s.nom+' '+s.quartier+' '+s.whatsapp).toLowerCase().includes(qq)));
-  return '<section class="card stack"><div class="row between wrapx"><h2 style="font-size:17px">Vendeurs ('+list.length+')</h2><div class="row wrapx">'+[['tous','Tous'],['attente','En attente'],['pro','Pro'],['suspendu','Suspendus']].map(x=>'<button type="button" class="chip'+(ui.aFilter===x[0]?' on':'')+'" data-a="aFilter" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div></div>'+
+  const list=S.shops.filter(s=>(ui.aFilter==='tous'||(ui.aFilter==='attente'&&s.verification==='attente')||(ui.aFilter==='pro'&&s.formule==='pro')||(ui.aFilter==='suspendu'&&s.statut==='suspendu')||(ui.aFilter==='enligne'&&enLigne(s)))&&(!qq||(s.nom+' '+s.quartier+' '+s.whatsapp).toLowerCase().includes(qq)));
+  return '<section class="card stack"><div class="row between wrapx"><h2 style="font-size:17px">Vendeurs ('+list.length+')</h2><div class="row wrapx">'+[['tous','Tous'],['enligne','🟢 En ligne ('+S.shops.filter(enLigne).length+')'],['attente','En attente'],['pro','Pro'],['suspendu','Suspendus']].map(x=>'<button type="button" class="chip'+(ui.aFilter===x[0]?' on':'')+'" data-a="aFilter" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div></div>'+
   '<label class="search" style="margin:0;box-shadow:none;border:1.5px solid #E2D9F8">'+ic('search',18,'#6B5B8C')+'<span hidden>Rechercher un vendeur</span><input id="aq" type="search" placeholder="Nom, quartier, numéro…" value="'+esc(ui.aQ)+'" data-i="aQ"></label>'+
   '<div class="tbl-wrap"><table><thead><tr><th>Boutique</th><th>Quartier</th><th>WhatsApp</th><th>Produits</th><th>Formule</th><th>Vérification</th><th>Statut</th><th><span hidden>Actions</span></th></tr></thead><tbody>'+
-  list.map(s=>'<tr><td><span class="row">'+avatar(s,34)+'<b>'+esc(s.nom)+'</b>'+(s.vedette?'<span class="badge b-orange">Vedette</span>':'')+'</span></td><td>'+esc(place(s))+'</td><td class="num">'+esc(s.whatsapp)+'</td><td class="num">'+shopProducts(s.id).length+'</td><td>'+(s.formule==='pro'?'<span class="badge b-orange">Pro</span>':'<span class="badge b-violet">Gratuit</span>')+'</td><td>'+badgeVerif(s)+'</td><td>'+(s.statut==='actif'?'<span class="badge b-green">Actif</span>':'<span class="badge b-grey">Suspendu</span>')+'</td><td style="text-align:right"><button type="button" class="btn btn-w btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir la fiche</button></td></tr>').join('')+'</tbody></table></div></section>';
+  list.map(s=>'<tr><td><span class="row">'+avatar(s,34)+'<span class="stack" style="gap:2px"><b>'+esc(s.nom)+'</b>'+presenceHTML(s,true)+'</span>'+(s.vedette?'<span class="badge b-orange">Vedette</span>':'')+'</span></td><td>'+esc(place(s))+'</td><td class="num">'+esc(s.whatsapp)+'</td><td class="num">'+shopProducts(s.id).length+'</td><td>'+(s.formule==='pro'?'<span class="badge b-orange">Pro</span>':'<span class="badge b-violet">Gratuit</span>')+'</td><td>'+badgeVerif(s)+'</td><td>'+(s.statut==='actif'?'<span class="badge b-green">Actif</span>':'<span class="badge b-grey">Suspendu</span>')+'</td><td style="text-align:right"><button type="button" class="btn btn-w btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir la fiche</button></td></tr>').join('')+'</tbody></table></div></section>';
 }
 function aFiche(s){
   if(!s){ui.adminShop=null;return aVendeurs();}
@@ -1104,6 +1109,9 @@ document.addEventListener('submit',e=>{
 window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;ui.type=null;document.getElementById('layer').innerHTML='';render();});
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
+function ping(){if(S.user&&!isAdmin()&&myShop()&&!document.hidden)sb.rpc('je_suis_la').then(()=>{},()=>{});}
+setInterval(()=>{ping();if(document.hidden||!S.loaded)return;sb.from('shops').select('id,vu_le').then(r=>{if(r&&!r.error&&r.data)r.data.forEach(x=>{const s=shopById(x.id);if(s)s.vu_le=x.vu_le;});},()=>{});},120000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)ping();});
 window.GB={S:S,shopById:shopById,prodById:prodById,askAlerts:askAlerts};
 loadAll().then(()=>render());
 })();

@@ -367,3 +367,11 @@ a.badge{text-decoration:none}
 .also-row::-webkit-scrollbar{display:none}
 .also-row .shop{flex:0 0 230px;scroll-snap-align:start}
 @media (min-width:900px){.also-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}.also-row .shop{flex:none}}
+
+/* ---------- Vendeur en ligne ---------- */
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--muted)}
+.pres::before{content:"";width:8px;height:8px;border-radius:50%;background:#C4B8DD}
+.pres.on{color:#0E7A5F}.pres.on::before{background:#22C55E;box-shadow:0 0 0 3px rgba(34,197,94,.22);animation:presPulse 1.8s infinite}
+.pres.off::before{background:#E5E7EB}
+@keyframes presPulse{50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}}
+@media (prefers-reduced-motion:reduce){.pres.on::before{animation:none}}
