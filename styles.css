@@ -56,7 +56,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .cat{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;padding:0}
 .cat-ico{width:54px;height:54px;border-radius:18px;display:grid;place-items:center}
 .cat.on .cat-ico{outline:3px solid var(--ink);outline-offset:2px}
-.sec-title{display:flex;justify-content:space-between;align-items:baseline}
+.sec-title{display:flex;justify-content:flex-start;align-items:center;gap:8px}
+.cnt-pill{background:#EDE7FB;color:#5B21B6;font-weight:700;font-size:12px;padding:2px 9px;border-radius:999px}
 .sec-title h2{font-size:18px}
 .shops{display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;scrollbar-width:none}
 .shop{flex-shrink:0;width:220px;border-radius:22px;background:#fff;overflow:hidden;text-decoration:none;color:var(--ink);box-shadow:0 16px 28px -14px rgba(76,29,149,.45)}
@@ -262,7 +263,7 @@ td{padding:10px 6px;border-top:1px solid #F0EAFB;vertical-align:middle}
   .hero p{font-size:17px;max-width:620px}
   .hero form,.hero .search{max-width:640px}
   .pgrid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
-  .hscroll{grid-auto-columns:minmax(210px,1fr)}
+  .hscroll{grid-auto-columns:230px}
   .cats{justify-content:flex-start;gap:18px}
   .grid2:not(.keep2){gap:16px}
   .banners{max-height:340px}
