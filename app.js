@@ -74,13 +74,16 @@ const S={settings:{nom:'Gbairai Market',limite_gratuit:20,quartiers:[],categorie
 let cart=[];try{cart=JSON.parse(localStorage.getItem(CART_KEY)||'[]')||[];}catch(e){cart=[];}
 function saveCart(){try{localStorage.setItem(CART_KEY,JSON.stringify(cart));}catch(e){}}
 function lsGet(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v;}catch(e){return d;}}
-function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}if(SYNC_KEYS.includes(k))clientSaveSoon();}
+const SYNC_KEYS=['gbairai-favoris','gbairai-suivis','gbairai-mes-commandes'];
 let favs=lsGet('gbairai-favoris',[]);if(!Array.isArray(favs))favs=[];
 let client=lsGet('gbairai-client',{nom:'',tel:'',adresse:''})||{nom:'',tel:'',adresse:''};
 let myOrders=lsGet('gbairai-mes-commandes',[]);if(!Array.isArray(myOrders))myOrders=[];
+let follows=lsGet('gbairai-suivis',[]);if(!Array.isArray(follows))follows=[];
+let seen=lsGet('gbairai-vus',{})||{};
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={nbAb:{},gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -110,8 +113,22 @@ const typeOpts=(cid,cur)=>{const c=CATS().find(x=>x.id===cid),t=c?c.types.slice(
 function rImg(c,i){return c.photo?'<img src="'+esc(c.photo)+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'r-ico\'}))">':'<span class="r-ico" style="background:'+grad(i||0)+'">'+ic(ICON[c.id]?c.id:'autre',34,'#fff',1.8)+'</span>';}
 function rayonProds(id){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id));return S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id)&&(p.categorie||'autre')===id);}
 function rayonsHTML(){
-  return '<div class="sec-title"><h2>Tous les rayons</h2></div><div class="rayons">'+CATS().map((c,i)=>{const n=rayonProds(c.id).length;if(c.id==='autre'&&!n)return '';
-    return '<a class="rayon" href="#rayon-'+esc(c.id)+'">'+rImg(c,i)+(n?'<small>'+n+'</small>':'')+'<b>'+esc(c.nom)+'</b></a>';}).join('')+'</div>';}
+  const tiles=dup=>CATS().map((c,i)=>{const n=rayonProds(c.id).length;if(c.id==='autre'&&!n)return '';
+    return '<a class="rayon" href="#rayon-'+esc(c.id)+'"'+(dup?' aria-hidden="true" tabindex="-1"':'')+'>'+rImg(c,i)+(n?'<small>'+n+'</small>':'')+'<b>'+esc(c.nom)+'</b></a>';}).join('');
+  return '<div class="sec-title"><h2>Tous les rayons</h2><a href="#rayons" class="small" style="font-weight:700;margin-left:auto">Voir tout ›</a></div><div class="rail" data-rail><div class="rail-track">'+tiles(false)+tiles(true)+'</div></div>';}
+function vRayons(){return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Tous les rayons</h1></div><div class="rayons">'+CATS().map((c,i)=>{const n=rayonProds(c.id).length;
+  return '<a class="rayon" href="#rayon-'+esc(c.id)+'">'+rImg(c,i)+(n?'<small>'+n+'</small>':'')+'<b>'+esc(c.nom)+'</b></a>';}).join('')+'</div></div>';}
+(function railLoop(){let el=null,pos=0,last=0,pause=0;const red=matchMedia('(prefers-reduced-motion: reduce)');
+  const step=t=>{const r=document.querySelector('[data-rail]'),tr=r&&r.firstElementChild,k=tr?tr.children.length/2:0;
+    if(r&&k>=1){if(r!==el){el=r;pos=r.scrollLeft;}
+      const per=tr.children[k].offsetLeft-tr.children[0].offsetLeft;
+      if(Math.abs(r.scrollLeft-pos)>2)pos=r.scrollLeft;
+      if(t>pause&&!red.matches&&!document.hidden)pos+=Math.min(50,t-last)*0.035;
+      if(per>0&&pos>=per)pos-=per;
+      if(Math.abs(r.scrollLeft-pos)>=.5)r.scrollLeft=pos;}
+    last=t;requestAnimationFrame(step);};
+  ['pointerdown','pointermove','touchstart','wheel','focusin'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target&&e.target.closest&&e.target.closest('[data-rail]'))pause=performance.now()+2500;},{capture:true,passive:true}));
+  requestAnimationFrame(step);})();
 function vRayon(id){
   const cs=CATS(),i=cs.findIndex(x=>x.id===id),c=cs[i];
   if(!c)return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Rayon introuvable</h1></div></div>';
@@ -195,11 +212,14 @@ async function loadAll(){
         const [o,t,p]=await Promise.all([q(sb.from('orders').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false})),q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false})),q(sb.from('shop_private').select('*').eq('shop_id',mine.id))]);
         S.orders=o;S.txs=t;p.forEach(x=>S.priv[x.shop_id]=x);
         S.payments=await safe(sb.from('payments').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false}));
+        S.nbAb=await sb.rpc('nb_abonnes',{sid:mine.id}).then(r=>typeof r.data==='number'?r.data:0,()=>0);
       }
     }
     S.error=null;
   }catch(e){S.error=errMsg(e);}
   S.loaded=true;
+  if(S.user&&!S.synced&&!S.syncing){S.syncing=true;clientSync().finally(()=>{S.syncing=false;});}
+  if(!S.user){S.synced=false;S.cnom='';}
   cart=cart.filter(l=>prodById(l.pid));saveCart();
   document.title=S.settings.nom||'Gbairai Market';
 }
@@ -262,15 +282,84 @@ function topProducts(orders,k){const m={};orders.filter(o=>o.statut!=='annulee')
   return Object.values(m).sort((a,b)=>b.q-a.q).slice(0,k||5);}
 function perChips(cur){return '<div class="row wrapx" style="gap:6px">'+[['7','7 jours'],['30','30 jours'],['0','Tout']].map(x=>'<button type="button" class="chip'+(String(cur)===x[0]?' on':'')+'" data-a="per" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';}
 
+/* ---------- SUIVRE / NOTIFICATIONS / COMPTE CLIENT ---------- */
+const isUuid=x=>/^[0-9a-f-]{36}$/i.test(String(x||''));
+const isFollow=id=>follows.includes(id);
+const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+const pushOn=()=>pushOK()&&Notification.permission==='granted'&&lsGet('gbairai-push',0)===1;
+function b64uBytes(x){x=String(x).replace(/-/g,'+').replace(/_/g,'/');const r=atob(x+'==='.slice((x.length+3)%4));return Uint8Array.from(r,c=>c.charCodeAt(0));}
+function b64uStr(bytes){let t='';new Uint8Array(bytes).forEach(b=>t+=String.fromCharCode(b));return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function pushEnable(){
+  if(!pushOK()){if(window.GBinstall&&GBinstall.ios&&!GBinstall.installee()){showInstallHelp(true);return false;}toast('Ce navigateur ne permet pas les notifications');return false;}
+  const key=S.settings.vapid_public;if(!key){toast('Les alertes seront bientôt disponibles');return false;}
+  let perm=Notification.permission;if(perm!=='granted')perm=await Notification.requestPermission();
+  if(perm!=='granted'){toast('Alertes refusées. Autorisez-les dans les réglages du navigateur.');return false;}
+  try{const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
+    if(sub&&sub.options&&sub.options.applicationServerKey&&b64uStr(sub.options.applicationServerKey)!==key){await sub.unsubscribe();sub=null;}
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uBytes(key)});
+    lsSet('gbairai-push',1);await pushSync(sub);toast('Alertes activées 🔔');return true;
+  }catch(e){toast('Impossible d\'activer les alertes sur ce téléphone');return false;}}
+async function pushSync(sub){try{if(!pushOn())return;const reg=await navigator.serviceWorker.ready;sub=sub||await reg.pushManager.getSubscription();if(!sub)return;const j=sub.toJSON();
+  await sb.rpc('push_save',{ep:j.endpoint,k:j.keys.p256dh,a:j.keys.auth,sh:follows.filter(isUuid).slice(0,200),ord:myOrders.map(o=>o.id).filter(isUuid).slice(0,50)});}catch(e){}}
+async function pushDisable(){try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription();if(sub){await sb.rpc('push_remove',{ep:sub.endpoint});await sub.unsubscribe();}}catch(e){}lsSet('gbairai-push',0);toast('Alertes désactivées');}
+function notify(o){if(!S.token)return;try{fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
+function setFollow(id,on){follows=on?[id].concat(follows.filter(x=>x!==id)):follows.filter(x=>x!==id);lsSet('gbairai-suivis',follows);if(on){seen[id]=new Date().toISOString();lsSet('gbairai-vus',seen);}pushSync();}
+const newCount=sid=>{const t=seen[sid];return t?shopProducts(sid).filter(p=>p.visible&&p.stock>0&&p.created_at&&String(p.created_at)>t).length:0;};
+function followHTML(s){const f=isFollow(s.id),n=ui.nbAb[s.id];
+  if(n===undefined){ui.nbAb[s.id]=null;sb.rpc('nb_abonnes',{sid:s.id}).then(r=>{if(typeof r.data==='number'){ui.nbAb[s.id]=r.data;const el=document.getElementById('nbab');if(el&&r.data)el.textContent=r.data+' abonné'+(r.data>1?'s':'');}},()=>{});}
+  return '<div class="row between wrapx" style="gap:8px"><button type="button" class="btn '+(f?'btn-w':'btn-o')+' btn-s" data-a="follow" data-id="'+s.id+'" aria-pressed="'+f+'">'+(f?'✔ Abonné'+(pushOn()?' · 🔔':''):'🔔 Suivre la boutique')+'</button><span class="small muted" id="nbab">'+(n?n+' abonné'+(n>1?'s':''):'')+'</span></div>';}
+function mesBoutiquesHTML(){const list=follows.map(shopById).filter(s=>s&&s.statut==='actif');if(!list.length)return '';
+  return '<div class="sec-title"><h2>Mes boutiques</h2><a href="#compte" class="small" style="font-weight:700;margin-left:auto">Gérer ›</a></div><div class="mesb">'+list.map(s=>{const n=newCount(s.id);
+    return '<a class="mesb-it" href="#boutique-'+esc(s.slug)+'">'+avatar(s,56)+(n?'<span class="mesb-n">+'+n+'</span>':'')+'<b>'+esc(s.nom)+'</b></a>';}).join('')+'</div>';}
+function alertCard(txt){
+  if(pushOn())return '<div class="good small">🔔 <b>Alertes activées</b> · vous serez prévenu sur ce téléphone.</div>';
+  return '<div class="card row between wrapx alertcard" style="gap:10px"><span class="row" style="gap:10px"><span class="bell">🔔</span><span><b>'+txt+'</b><br><span class="small muted">Une notification arrive sur votre téléphone, même site fermé.</span></span></span><button type="button" class="btn btn-v btn-s" data-a="pushOn">Activer</button></div>';}
+function installCard(txt){const G=window.GBinstall;if(!G||!G.possible())return '';
+  return '<div class="card row between wrapx alertcard" style="gap:10px"><span class="row" style="gap:10px"><img src="icons/logo.svg" alt="" width="40" height="40"><span><b>Installez Gbairai sur votre téléphone</b><br><span class="small muted">'+esc(txt)+'</span></span></span><button type="button" class="btn btn-o btn-s" data-a="install">Installer</button></div>';}
+function showInstallHelp(forPush){document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><h2 style="font-size:17px">Installer sur iPhone</h2>'+(forPush?'<p class="small muted" style="margin:0">Sur iPhone, les alertes marchent seulement quand Gbairai est installé.</p>':'')+'<ol class="small" style="margin:0;padding-left:18px;line-height:1.8"><li>Touchez le bouton <b>Partager</b> (carré avec une flèche) en bas de Safari.</li><li>Choisissez <b>« Sur l\'écran d\'accueil »</b>.</li><li>Ouvrez Gbairai depuis l\'écran d\'accueil'+(forPush?', puis activez les alertes':'')+'.</li></ol><button type="button" class="btn btn-v" data-a="closeModal">J\'ai compris</button></div></div>';}
+function askAlerts(s){document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1" style="text-align:center"><div style="font-size:40px">🔔</div><h2 style="font-size:18px">Vous suivez '+esc(s.nom)+'</h2><p class="muted small" style="margin:0">Voulez-vous une alerte quand la boutique ajoute un article ou lance une promo ?</p><button type="button" class="btn btn-v" data-a="pushOn">Oui, activer les alertes</button><button type="button" class="btn btn-w" data-a="closeModal">Plus tard</button></div></div>';}
+// Compte client : favoris, boutiques suivies et commandes sur tous les téléphones
+let saveT=null;
+function clientSaveSoon(){if(!S.user||!S.synced)return;clearTimeout(saveT);saveT=setTimeout(clientSave,800);}
+function clientSave(){if(!S.user)return;const m=S.user.user_metadata||{};
+  return sb.from('client_data').upsert({user_id:S.user.id,nom:String(S.cnom||m.nom||'').slice(0,80),favs:favs.slice(0,300),follows:follows.slice(0,200),orders:myOrders.slice(0,50),updated_at:new Date().toISOString()}).then(()=>{},()=>{});}
+async function clientSync(){
+  try{const r=await sb.from('client_data').select('*').eq('user_id',S.user.id).maybeSingle();if(r.error)return;const d=r.data||{};
+    S.cnom=d.nom||(S.user.user_metadata||{}).nom||'';
+    favs=uniqA(favs.concat(d.favs||[]));follows=uniqA(follows.concat(d.follows||[]));
+    const by={};(d.orders||[]).concat(myOrders).forEach(o=>{if(o&&o.id)by[o.id]=Object.assign({},by[o.id],o);});
+    myOrders=Object.values(by).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,50);
+    S.synced=true;lsSet('gbairai-favoris',favs);lsSet('gbairai-suivis',follows);lsSet('gbairai-mes-commandes',myOrders);await clientSave();pushSync();render(true);
+  }catch(e){}}
+function vCompte(){
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>';
+  if(!S.user){const t=ui.cTab||'creer';
+    return h+'<section class="hero"><span class="ball o" style="right:-46px;top:-46px;width:100px;height:100px"></span><h2 style="color:#fff;font-size:22px;margin:0">Votre compte Gbairai</h2><p style="margin:6px 0 0">Gratuit. Retrouvez vos commandes, vos favoris et vos boutiques sur tous vos téléphones.</p></section>'+
+    '<div class="seg2">'+[['creer','Créer mon compte'],['login','Me connecter']].map(x=>'<button type="button" class="chip'+(t===x[0]?' on':'')+'" data-a="cTab" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+    (t==='creer'?'<form class="card stack" data-f="csignup"><label class="lbl">Votre nom<input class="in" name="nom" required maxlength="80" autocomplete="name" value="'+esc(client.nom||'')+'" placeholder="Ex. : Fatou K."></label><label class="lbl">Numéro de téléphone<input class="in" name="phone" type="tel" required autocomplete="tel" value="'+esc(client.tel||'')+'" placeholder="07 XX XX XX XX"></label><label class="lbl">Mot de passe (6 caractères minimum)<input class="in" name="password" type="password" required minlength="6" autocomplete="new-password"></label><button class="btn btn-v btn-block" type="submit">Créer mon compte</button><p class="small muted" style="margin:0">Pas de SMS, pas d\'e-mail : seulement votre numéro et un mot de passe.</p></form>'
+    :'<form class="card stack" data-f="clogin"><label class="lbl">Numéro de téléphone<input class="in" name="phone" type="tel" required autocomplete="tel" placeholder="07 XX XX XX XX"></label><label class="lbl">Mot de passe<input class="in" name="password" type="password" required autocomplete="current-password"></label><button class="btn btn-v btn-block" type="submit">Me connecter</button>'+(S.settings.support_whatsapp?'<a class="small" target="_blank" rel="noopener" href="https://wa.me/'+waNum(S.settings.support_whatsapp)+'?text='+encodeURIComponent('Bonjour, j\'ai oublié le mot de passe de mon compte Gbairai.')+'">Mot de passe oublié ?</a>':'')+'</form>')+
+    alertCard('Recevoir les alertes sans compte')+installCard('Ouvrez vos boutiques en un geste.')+'</div>';}
+  const m=S.user.user_metadata||{},nom=S.cnom||m.nom||'',tel=m.phone||'',sh=myShop();
+  const ini=(nom||'?').split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
+  const fl=follows.map(shopById).filter(Boolean);
+  h+='<section class="card row" style="gap:14px"><span class="av-c">'+esc(ini)+'</span><div style="min-width:0"><b style="font-size:17px">'+esc(nom||'Mon compte')+'</b><div class="small muted">'+esc(tel?'+'+tel:'')+'</div><div class="small" style="color:#0E7A5F;font-weight:700">'+(S.synced?'✔ Synchronisé sur vos téléphones':'Synchronisation…')+'</div></div></section>';
+  h+='<div class="grid2"><a class="card stack kpi-l" href="#commandes"><b style="font-size:22px">'+myOrders.length+'</b><span class="small muted">Mes commandes</span></a><a class="card stack kpi-l" href="#favoris"><b style="font-size:22px">'+favs.length+'</b><span class="small muted">Mes favoris</span></a></div>';
+  h+=pushOn()?'<div class="card row between" style="gap:10px"><span>🔔 <b>Alertes activées</b><br><span class="small muted">Nouveautés de vos boutiques et étapes de vos commandes</span></span><button type="button" class="btn btn-w btn-s" data-a="pushOff">Désactiver</button></div>':alertCard('Activer les alertes');
+  h+='<section class="card stack"><h2 style="font-size:16px">Boutiques que je suis ('+fl.length+')</h2>'+(fl.length?fl.map(s=>'<div class="row between"><a class="row" href="#boutique-'+esc(s.slug)+'" style="gap:10px;min-width:0">'+avatar(s,40)+'<b style="min-width:0">'+esc(s.nom)+'</b></a><button type="button" class="btn btn-w btn-s" data-a="follow" data-id="'+s.id+'">Ne plus suivre</button></div>').join(''):'<p class="small muted" style="margin:0">Touchez « 🔔 Suivre la boutique » sur la page d\'une boutique.</p>')+'</section>';
+  h+=installCard('Retrouvez vos commandes en un geste.');
+  h+=isAdmin()?'<a class="btn btn-w btn-block" href="#admin">Administration</a>':'<a class="btn btn-w btn-block" href="#vendeur">'+(sh?'Mon espace vendeur':'🏪 Vendre sur Gbairai : créer ma boutique')+'</a>';
+  return h+'<button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button></div>';
+}
+
 /* ---------- CLIENT ---------- */
 function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
-  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
+  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="icon-btn" href="#compte" aria-label="Mon compte">'+ic('user',20,S.user?'#0E7A5F':'#5B21B6')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
   '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
-  bannersHTML()+homeTicker()+rayonsHTML()+'<a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
+  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
 }
 function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
   const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
@@ -308,6 +397,7 @@ function flashHTML(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(
   return '<section class="flashbox"><div class="row" style="gap:8px"><h2 class="row" style="gap:6px;font-size:18px">'+ic('bolt',20,'#FF7A1A',2.4)+'Promos et ventes flash</h2><span class="cnt-pill">'+ps.length+'</span></div><div class="hscroll">'+ps.map(pCard).join('')+'</div></section>';}
 function vBoutique(slug){
   const s=S.shops.find(x=>x.slug===slug);
+  if(s&&isFollow(s.id)&&ui.seenNow!==s.id){ui.seenNow=s.id;setTimeout(()=>{seen[s.id]=new Date().toISOString();lsSet('gbairai-vus',seen);},0);}
   if(!s||s.statut!=='actif')return '<div class="wrap">'+back('#accueil')+'<div class="card"><h2>Boutique introuvable</h2><p class="muted">Cette boutique n\'existe pas ou est suspendue.</p></div></div>';
   const prods=shopProducts(s.id).filter(p=>p.visible);
   const lines=cart.filter(l=>{const p=prodById(l.pid);return p&&p.shop_id===s.id;});
@@ -316,7 +406,7 @@ function vBoutique(slug){
   '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+ratingHTML(s.id)+'</div></div>'+
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
-  '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div></div>'+
+  '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div>'+followHTML(s)+'</div>'+
   trustHTML(s)+
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
@@ -383,6 +473,8 @@ function vSuivi(id){
   h+='<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:120px;height:120px"></span><p style="margin:0">'+esc(d.boutique)+' · '+F(d.total)+'</p><h2 style="color:#fff;font-size:26px;margin:4px 0">'+(step===3?'🛵 ':step===4?'✅ ':'')+title+'</h2>'+(d.eta&&step>0&&step<4?'<p style="margin:0">Arrivée prévue : '+esc(d.eta)+'</p>':'')+(d.livree_code?'<p style="margin:0">Livraison confirmée par votre code ✔</p>':'')+'</section>';
   if(step>=0)h+='<div class="card"><ol class="steps">'+LIV.map((x,i)=>'<li class="'+(i<step||(i===4&&step===4)?'done':i===step?'now':'')+'"><span>'+(i<step||(i===4&&step===4)?'✓':i+1)+'</span><div><div>'+x[1]+'</div>'+(i<=step&&when[i]?'<small>'+hhmm(when[i])+(i===3&&d.livreur_nom?' · Livreur : '+esc(d.livreur_nom)+(d.livreur_tel?' · '+esc(d.livreur_tel):''):'')+'</small>':i===4&&step<4&&d.a_code?'<small>Donnez le code au livreur</small>':'')+'</div></li>').join('')+'</ol></div>';
   if(mine&&mine.code&&d.a_code&&!d.livree_code&&step>=0)h+='<div class="card stack codecard"><b class="row" style="gap:6px;justify-content:center">🔒 Votre code de livraison</b><div class="code">'+mine.code.split('').map(c=>'<i>'+c+'</i>').join('')+'</div><p class="small muted" style="margin:0">Donnez ce code au livreur <b>seulement quand vous avez l\'article en main</b>. Ne le donnez jamais avant.</p></div>';
+  if(step>=0&&step<4&&d.statut!=='annulee')h+=alertCard('Être prévenu à chaque étape');
+  h+=installCard('Suivez vos commandes en un geste, même sans chercher le lien.');
   h+='<div class="card stack" style="gap:6px">'+(d.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><b>Total</b><b class="price num">'+F(d.total)+'</b></div></div>';
   h+='<div class="grid2">'+(d.livreur_tel&&step===3?'<a class="btn btn-g" href="tel:'+esc(d.livreur_tel.replace(/\s/g,''))+'">📞 Appeler le livreur</a>':'<a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/'+waNum(d.whatsapp)+'?text='+encodeURIComponent('Bonjour, où en est ma commande n° '+String(id).slice(0,8).toUpperCase()+' ?')+'">'+ic('wa',20,'#fff')+'Écrire au vendeur</a>')+
     (sh?'<button type="button" class="btn btn-r" data-a="report" data-id="'+sh.id+'" data-motif="Produit non reçu" data-oid="'+esc(id)+'">⚠ Un problème</button>':'')+'</div>';
@@ -391,6 +483,8 @@ function vSuivi(id){
 function vMesCommandes(){
   let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mes commandes</h1></div>'+
   '<form class="card stack" data-f="trackNum" style="gap:8px"><b>Suivre une commande</b><div class="grid2"><input class="in" name="num" maxlength="8" required placeholder="N° (8 caractères)" aria-label="Numéro de commande"><input class="in" name="tel" type="tel" required placeholder="Votre téléphone" value="'+esc(client.tel||'')+'" aria-label="Votre téléphone"></div><button class="btn btn-v btn-s" type="submit">Suivre</button></form>';
+  if(myOrders.length)h+=alertCard('Être prévenu quand mes commandes avancent');
+  if(!S.user)h+='<a class="small" href="#compte" style="font-weight:700">🔐 Créez un compte pour retrouver vos commandes sur un autre téléphone ›</a>';
   if(!myOrders.length)return h+'<div class="card stack" style="text-align:center;padding:28px"><h2 style="font-size:18px">Aucune commande sur ce téléphone</h2><p class="muted" style="margin:0">Vos commandes apparaissent ici après avoir commandé sur WhatsApp ou Telegram.</p><a class="btn btn-v" href="#accueil">Voir les boutiques</a></div></div>';
   if(ui.mes===null){ui.mes={};sb.rpc('suivi_commandes',{ids:myOrders.map(o=>o.id)}).then(r=>{(r.data||[]).forEach(x=>ui.mes[x.id]=x);ui.mesOk=true;render(true);},()=>{ui.mesOk=true;render(true);});}
   const chip={0:['⏳ Envoyée','b-orange'],1:['✔ Confirmée','b-violet'],2:['📦 En préparation','b-violet'],3:['🛵 En route','b-blue'],4:['✔ Livrée','b-green'],'-1':['✖ Annulée','b-grey']};
@@ -447,6 +541,7 @@ function vvAccueil(s){
   const myO=S.orders.filter(o=>o.shop_id===s.id),D=ui.per,Op=myO.filter(o=>inPer(o.created_at,D)),cf=Op.filter(o=>o.statut==='confirmee');
   const caP=cf.reduce((a,o)=>a+o.total,0),todayO=myO.filter(o=>dayKey(o.created_at)===dayKey(Date.now()));
   const tk=[];
+  if(S.nbAb)tk.push('🔔 '+S.nbAb+' client'+(S.nbAb>1?'s':'')+' abonné'+(S.nbAb>1?'s':'')+' à votre boutique');
   tk.push('📅 Aujourd\'hui : '+todayO.length+' commande'+(todayO.length>1?'s':'')+' · '+F(todayO.filter(o=>o.statut==='confirmee').reduce((a,o)=>a+o.total,0)));
   myO.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,5).forEach(o=>tk.push((o.statut==='confirmee'?'💰 Vente':o.statut==='annulee'?'✖️ Annulée':'🛒 Nouvelle commande')+' · '+F(o.total)+' · '+ago(o.created_at)));
   prods.filter(p=>p.stock>0&&p.stock<=3).slice(0,4).forEach(p=>tk.push('⚠️ Stock bas : '+esc(p.nom)+' ('+p.stock+')'));
@@ -708,13 +803,27 @@ function aParams(){
   return '<form class="card stack" data-f="params" style="max-width:640px"><h2 style="font-size:17px">Paramètres de la plateforme</h2><label class="lbl">Nom de la plateforme<input class="in" id="p-nom" name="nom" value="'+esc(st.nom)+'"></label><div class="grid2"><label class="lbl">Produits gratuits par vendeur<input class="in" id="p-lim" name="limite_gratuit" type="number" min="1" value="'+st.limite_gratuit+'"></label><label class="lbl">Prix Pro (FCFA / mois)<input class="in" id="p-pro" name="prix_pro" inputmode="numeric" value="'+esc(st.prix_pro)+'" placeholder="à définir"></label></div><div class="grid2"><label class="lbl">Prix mise en vedette (FCFA / semaine)<input class="in" id="p-ved" name="prix_vedette" inputmode="numeric" value="'+esc(st.prix_vedette)+'" placeholder="à définir"></label><label class="lbl">Prix bannière (FCFA / semaine)<input class="in" id="p-ban" name="prix_banniere" inputmode="numeric" value="'+esc(st.prix_banniere||'')+'" placeholder="à définir"></label></div>'+
   '<h3 style="font-size:15px">Vos numéros pour recevoir les paiements</h3><div class="grid2">'+OPS.map(o=>'<label class="lbl">'+o[1]+'<input class="in" name="pm_'+o[0]+'" type="tel" value="'+esc((st.paiement||{})[o[0]]||'')+'" placeholder="07 XX XX XX XX"></label>').join('')+'</div>'+
   '<label class="lbl">WhatsApp du support (mot de passe oublié, aide)<input class="in" name="support_whatsapp" type="tel" value="'+esc(st.support_whatsapp||'')+'" placeholder="07 XX XX XX XX"></label>'+
-  '<button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>';
+  '<button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+aNotif();
+}
+function aNotif(){const st=S.settings,pub=st.vapid_public||'';
+  if(ui.npret===undefined){ui.npret=null;fetch('/api/notify').then(r=>r.json()).then(j=>{ui.npret=j;render(true);},()=>{ui.npret=false;render(true);});}
+  const np=ui.npret,ok=np&&np.pret&&np.cle===pub&&pub;
+  let h='<section class="card stack" style="max-width:640px;margin-top:14px"><h2 style="font-size:17px">🔔 Notifications des clients</h2>';
+  if(!('vapid_public' in st))return h+'<div class="warn small">Lancez d\'abord <b>supabase/mise-a-jour-5.sql</b> dans Supabase.</div></section>';
+  if(ok)return h+'<div class="good small"><b>✔ Notifications prêtes.</b> Les clients reçoivent les nouveautés des boutiques suivies et les étapes de leurs commandes.</div></section>';
+  if(ui.vapid)return h+'<p class="small" style="margin:0"><b>Étape 2.</b> Dans Vercel, ouvrez votre projet → <b>Settings</b> → <b>Environment Variables</b>, et ajoutez ces 2 variables. Puis faites <b>Redeploy</b>.</p>'+
+    [['VAPID_PUBLIC_KEY',ui.vapid.pub],['VAPID_PRIVATE_KEY',ui.vapid.priv]].map(x=>'<div class="stack" style="gap:4px"><b class="small">'+x[0]+'</b><div class="row" style="gap:6px"><input class="in" readonly value="'+esc(x[1])+'" aria-label="'+x[0]+'" style="font-family:monospace;font-size:12px"><button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(x[1])+'">Copier</button></div></div>').join('')+
+    '<div class="warn small">La clé privée s\'affiche <b>une seule fois</b>. Ne la donnez à personne : collez-la seulement dans Vercel.</div></section>';
+  if(pub&&(np===false||(np&&!np.pret)))return h+'<div class="warn small">Les clés sont créées, mais Vercel ne les a pas encore. Ajoutez <b>VAPID_PUBLIC_KEY</b>, <b>VAPID_PRIVATE_KEY</b> et <b>SUPABASE_SERVICE_ROLE_KEY</b> dans Vercel, puis Redeploy.</div><button type="button" class="btn btn-w btn-s" data-a="genVapid">Recréer les clés (si la clé privée est perdue)</button></section>';
+  if(pub&&np&&np.pret&&np.cle!==pub)return h+'<div class="warn small">La clé dans Vercel ne correspond pas à celle du site. Recréez les clés et remplacez-les dans Vercel.</div><button type="button" class="btn btn-v btn-s" data-a="genVapid">Recréer les clés</button></section>';
+  if(pub)return h+'<p class="small muted" style="margin:0">Vérification…</p></section>';
+  return h+'<p class="small" style="margin:0"><b>Étape 1.</b> Créez les clés de notification (une seule fois).</p><button type="button" class="btn btn-v" data-a="genVapid">Créer les clés</button></section>';
 }
 
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -727,6 +836,8 @@ function render(keep){
   if(h.startsWith('boutique-'))html=vBoutique(decodeURIComponent(h.slice(9)));
   else if(h.startsWith('produit-'))html=vProduit(h.slice(8));
   else if(h.startsWith('rayon-'))html=vRayon(decodeURIComponent(h.slice(6)));
+  else if(h==='rayons')html=vRayons();
+  else if(h==='compte')html=vCompte();
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
   else if(h.startsWith('suivi-'))html=vSuivi(h.slice(6));
@@ -735,7 +846,7 @@ function render(keep){
   else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
-  if(h.startsWith('produit-')||h==='panier'||h.startsWith('suivi-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
+  if(h.startsWith('produit-')||h==='panier'||h==='compte'||h.startsWith('suivi-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
   const y=window.scrollY;app.innerHTML=html+nav(h);
   if(keep&&lastHash===h)window.scrollTo(0,y);else window.scrollTo(0,0);lastHash=h;
@@ -756,7 +867,7 @@ function logOrder(shopId,canal,single,id){
   const mkCode=()=>sb.rpc('creer_code',{oid:id,c:code}).then(()=>{},()=>{});
   sb.from('orders').insert(row).then(r=>{if(r&&r.error){delete row.client_nom;delete row.client_tel;delete row.client_adresse;sb.from('orders').insert(row).then(mkCode,()=>{});}else mkCode();},()=>{});
   const code=String(Math.floor(1000+Math.random()*9000));
-  const s=shopById(shopId);myOrders=[{id,code,boutique:s?s.nom:'',total:row.total,date:new Date().toISOString()}].concat(myOrders.filter(o=>o.id!==id)).slice(0,30);lsSet('gbairai-mes-commandes',myOrders);
+  const s=shopById(shopId);myOrders=[{id,code,boutique:s?s.nom:'',total:row.total,date:new Date().toISOString()}].concat(myOrders.filter(o=>o.id!==id)).slice(0,30);lsSet('gbairai-mes-commandes',myOrders);setTimeout(pushSync,1500);
   Object.keys(orderIds).forEach(k=>{if(orderIds[k]===id)delete orderIds[k];});
   if(!single){cart=cart.filter(l=>{const p=prodById(l.pid);return p&&p.shop_id!==shopId;});saveCart();setTimeout(()=>render(true),400);}
 }
@@ -804,8 +915,18 @@ const A={
   copy:t=>copy(t.dataset.text),
   share:t=>showShare(t.dataset.id),
   closeModal:()=>{document.getElementById('layer').innerHTML='';},
+  follow:t=>{const id=t.dataset.id,on=!isFollow(id),s=shopById(id);setFollow(id,on);if(ui.nbAb[id]!=null)ui.nbAb[id]=Math.max(0,ui.nbAb[id]+(on&&pushOn()?1:!on&&pushOn()?-1:0));render(true);
+    if(on&&s){if(!pushOn()&&pushOK()&&S.settings.vapid_public)askAlerts(s);else toast('Vous suivez '+s.nom);}else if(s)toast('Vous ne suivez plus '+s.nom);},
+  pushOn:()=>{document.getElementById('layer').innerHTML='';pushEnable().then(()=>render(true));},
+  pushOff:()=>{pushDisable().then(()=>render(true));},
+  install:()=>{const G=window.GBinstall;if(!G)return;if(G.ios&&!G.installee())showInstallHelp(false);else G.lancer().then(ok=>{if(ok)toast('Gbairai est installé 🎉');render(true);});},
+  cTab:t=>{ui.cTab=t.dataset.id;render(true);},
+  genVapid:()=>{if(S.settings.vapid_public&&!confirm('Recréer les clés ? Les clients devront réactiver leurs alertes.'))return;
+    crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']).then(k=>crypto.subtle.exportKey('jwk',k.privateKey)).then(j=>{
+      const pub=b64uStr(Uint8Array.from([4].concat(Array.from(b64uBytes(j.x)),Array.from(b64uBytes(j.y)))));
+      ui.vapid={pub,priv:j.d};return act(()=>q(sb.from('settings').update({vapid_public:pub}).eq('id',1)),'Clés créées');}).catch(()=>toast('Impossible de créer les clés'));},
   authMode:t=>{ui.authMode=t.dataset.id;render(true);},
-  logout:()=>act(async()=>{await sb.auth.signOut();ui.vTab='accueil';ui.adminShop=null;},'Déconnecté'),
+  logout:()=>act(async()=>{await sb.auth.signOut();S.synced=false;S.cnom='';ui.vTab='accueil';ui.adminShop=null;},'Déconnecté'),
   vtab:t=>{ui.vTab=t.dataset.id;ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
   newProd:()=>{const s=myShop();if(s.formule!=='pro'&&shopProducts(s.id).length>=S.settings.limite_gratuit){ui.vTab='produits';render();toast('Limite gratuite atteinte ('+S.settings.limite_gratuit+' produits). Passez Pro.');return;}ui.vTab='produits';ui.edit='new';ui.newColor=Math.floor(Math.random()*6);ui.photo=undefined;ui.extras=undefined;render();},
   editProd:t=>{ui.edit=t.dataset.id;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
@@ -821,12 +942,12 @@ const A={
   periode:t=>{ui.caissePeriode=t.dataset.id;render(true);},
   delTx:t=>act(()=>q(sb.from('txs').delete().eq('id',t.dataset.id))),
   confOrder:t=>act(async()=>{const o=S.orders.find(x=>x.id===t.dataset.id);
-    await q(sb.from('orders').update({statut:'confirmee'}).eq('id',o.id));
+    await q(sb.from('orders').update({statut:'confirmee'}).eq('id',o.id));notify({kind:'commande',order_id:o.id});
     for(const it of (o.items||[])){const p=prodById(it.pid);if(p)await q(sb.from('products').update({stock:Math.max(0,p.stock-it.qty)}).eq('id',p.id));}
     await q(sb.from('txs').insert({shop_id:o.shop_id,type:'recette',montant:o.total,libelle:'Vente · '+(o.items||[]).map(i=>i.qty+' '+i.nom).join(', ').slice(0,120),date:today()}));},'Vente confirmée : caisse et stock mis à jour'),
-  cancelOrder:t=>act(()=>q(sb.from('orders').update({statut:'annulee'}).eq('id',t.dataset.id))),
+  cancelOrder:t=>act(()=>q(sb.from('orders').update({statut:'annulee'}).eq('id',t.dataset.id)).then(r=>{notify({kind:'commande',order_id:t.dataset.id});return r;})),
   shopShare:()=>showShopShare(),
-  liv:t=>act(()=>q(sb.from('orders').update({livraison:t.dataset.v}).eq('id',t.dataset.id)),'Livraison mise à jour'),
+  liv:t=>act(()=>q(sb.from('orders').update({livraison:t.dataset.v}).eq('id',t.dataset.id)).then(r=>{notify({kind:'commande',order_id:t.dataset.id});return r;}),'Livraison mise à jour'),
   payType:t=>{ui.pay.type=t.dataset.id;render(true);},
   payOp:t=>{ui.pay.op=t.dataset.id;render(true);},
   payOk:t=>act(()=>q(sb.rpc('valider_paiement',{pid:t.dataset.id})),'Paiement validé : formule activée'),
@@ -913,6 +1034,15 @@ const FORMS={
     if(!r.data.session){const l=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(l.error)throw new Error('Compte créé, mais la connexion a échoué. Réessayez dans « Me connecter ».');}
     const u=(await sb.auth.getUser()).data.user;S.user=u;await createShop(d);ui.vTab='accueil';
   },'Boutique créée'),
+  csignup:d=>act(async()=>{
+    if(waNum(d.phone).length<12)throw new Error('Numéro de téléphone invalide (10 chiffres).');
+    const nom=String(d.nom||'').trim().slice(0,80);
+    const r=await sb.auth.signUp({email:phoneEmail(d.phone),password:d.password,options:{data:{phone:waNum(d.phone),nom,type:'client'}}});
+    if(r.error){if(/registered|exists/i.test(r.error.message||''))throw new Error('Ce numéro a déjà un compte. Touchez « Me connecter ».');throw r.error;}
+    if(!r.data.session){const l=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(l.error)throw new Error('Compte créé. Connectez-vous avec « Me connecter ».');}
+    S.cnom=nom;client.nom=client.nom||nom;client.tel=client.tel||d.phone;lsSet('gbairai-client',client);
+  },'Compte créé 🎉'),
+  clogin:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error)throw new Error('Numéro ou mot de passe incorrect.');},'Connecté'),
   login:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error)throw r.error;},'Connecté'),
   newshop:d=>act(()=>createShop(d),'Boutique créée'),
   produit:(d,f)=>act(async()=>{
@@ -922,8 +1052,10 @@ const FORMS={
     const barre=Math.round(n0(d.prix_barre));data.prix_barre=barre>data.prix?barre:null;data.promo_fin=data.prix_barre&&d.promo_fin?new Date(d.promo_fin).toISOString():null;
     if(d.prix_barre&&!data.prix_barre)throw new Error('L\'ancien prix doit être plus grand que le prix promo.');
     if(ui.extras){const out=[];for(const x of ui.extras)out.push(x.blob?await uploadPhoto(x.blob):x.url);data.photos=out;}
-    const save=x=>ui.edit==='new'?q(sb.from('products').insert(Object.assign({shop_id:s.id,couleur:ui.newColor||0},x))):q(sb.from('products').update(x).eq('id',ui.edit));
-    try{await save(data);}catch(e){if(!/type/i.test(String(e&&e.message)))throw e;delete data.type;await save(data);}
+    const old=ui.edit==='new'?null:prodById(ui.edit);
+    const save=x=>ui.edit==='new'?q(sb.from('products').insert(Object.assign({shop_id:s.id,couleur:ui.newColor||0},x)).select('id').single()):q(sb.from('products').update(x).eq('id',ui.edit));
+    let row;try{row=await save(data);}catch(e){if(!/type/i.test(String(e&&e.message)))throw e;delete data.type;row=await save(data);}
+    if(data.visible&&data.stock>0){if(!old&&row&&row.id)notify({kind:'boutique',shop_id:s.id,product_id:row.id});else if(old&&data.prix_barre&&!old.prix_barre)notify({kind:'boutique',shop_id:old.shop_id,product_id:old.id,promo:true});}
     ui.edit=null;ui.photo=undefined;ui.extras=undefined;
   },'Produit enregistré'),
   tx:d=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('txs').insert({shop_id:myShop().id,type:d.type,montant:m,libelle:d.libelle.trim(),date:d.date||today()}));},'Mouvement enregistré'),
@@ -950,7 +1082,7 @@ const FORMS={
   pwd:d=>act(async()=>{if(d.password!==d.password2)throw new Error('Les deux mots de passe sont différents.');const r=await sb.auth.updateUser({password:d.password});if(r.error)throw r.error;},'Mot de passe changé'),
   client:()=>toast('Informations enregistrées'),
   livreur:(d,f)=>act(()=>q(sb.from('orders').update({livreur_nom:String(d.livreur_nom||'').trim().slice(0,60),livreur_tel:String(d.livreur_tel||'').trim().slice(0,30),eta:String(d.eta||'').trim().slice(0,60)}).eq('id',f.dataset.id)),'Livraison mise à jour'),
-  codeLiv:(d,f)=>act(async()=>{const r=await q(sb.rpc('confirmer_livraison',{oid:f.dataset.id,c:String(d.code||'').trim()}));
+  codeLiv:(d,f)=>act(async()=>{const r=await q(sb.rpc('confirmer_livraison',{oid:f.dataset.id,c:String(d.code||'').trim()}));if(r==='ok')notify({kind:'commande',order_id:f.dataset.id});
     const m={ok:null,faux:'Code faux. Vérifiez avec le client.',bloque:'Trop d\'essais : code bloqué. Contactez le support.',aucun:'Cette commande n\'a pas de code (ancienne commande). Utilisez le bouton « Livrée ».',interdit:'Action non autorisée.',introuvable:'Commande introuvable.'};
     if(r!=='ok')throw new Error(m[r]||'Erreur');},'Livraison confirmée ✔'),
   clientRep:(d,f)=>act(async()=>{await q(sb.from('client_reports').insert({shop_id:f.dataset.id,client_tel:f.dataset.tel,motif:d.motif,details:String(d.details||'').trim().slice(0,600)}));document.getElementById('layer').innerHTML='';},'Signalement envoyé à l\'administrateur'),
@@ -967,6 +1099,6 @@ document.addEventListener('submit',e=>{
 window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;ui.type=null;document.getElementById('layer').innerHTML='';render();});
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
-window.GB={S:S,shopById:shopById,prodById:prodById};
+window.GB={S:S,shopById:shopById,prodById:prodById,askAlerts:askAlerts};
 loadAll().then(()=>render());
 })();

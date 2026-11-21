@@ -2,10 +2,17 @@
 (function(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
   var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  if (standalone) return;
-  try { if (localStorage.getItem('gbairai-install-ferme')) return; } catch(e) {}
   var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var evt = null;
+  // Utilisé par l'appli pour proposer l'installation au bon moment (après une commande, un abonnement…)
+  window.GBinstall = {
+    installee: function(){ return !!standalone; },
+    ios: ios,
+    possible: function(){ return !standalone && (!!evt || ios); },
+    lancer: function(){ if (evt) { evt.prompt(); return evt.userChoice.then(function(c){ evt = null; return c && c.outcome === 'accepted'; }); } return Promise.resolve(false); }
+  };
+  if (standalone) return;
+  var ferme = false; try { ferme = !!localStorage.getItem('gbairai-install-ferme'); } catch(e) {}
   function show(){
     if (document.getElementById('install-bar')) return;
     var d = document.createElement('div'); d.id = 'install-bar'; d.className = 'install-bar';
@@ -18,7 +25,7 @@
     if (go) go.onclick = function(){ evt.prompt(); evt.userChoice.finally(function(){ d.remove(); evt = null; }); };
     d.querySelector('.install-x').onclick = function(){ d.remove(); try { localStorage.setItem('gbairai-install-ferme', '1'); } catch(e) {} };
   }
-  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); evt = e; var o = document.getElementById('install-bar'); if (o) o.remove(); show(); });
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); evt = e; var o = document.getElementById('install-bar'); if (o) o.remove(); if (!ferme) show(); });
   window.addEventListener('appinstalled', function(){ var o = document.getElementById('install-bar'); if (o) o.remove(); });
-  if (ios) setTimeout(show, 1500);
+  if (ios && !ferme) setTimeout(show, 1500);
 })();
