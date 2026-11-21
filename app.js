@@ -411,8 +411,13 @@ function vBoutique(slug){
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
   (lines.length?'<a class="btn btn-v btn-block" href="#panier" style="justify-content:space-between"><span>'+lines.reduce((a,l)=>a+l.qty,0)+' article(s) · <span class="num">'+fmtN(tot)+' FCFA</span></span><span>Voir le panier</span></a>':'')+
-  reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button></div>';
+  reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
 }
+function alsoHTML(s){const cats=new Set(shopProducts(s.id).map(p=>p.categorie).concat([s.categorie])),v=villeOf(s);
+  const list=S.shops.filter(x=>x.id!==s.id&&x.statut==='actif').map(x=>({x,k:(x.categorie===s.categorie?3:0)+(shopProducts(x.id).some(p=>cats.has(p.categorie))?1:0)+(villeOf(x)===v?2:0)+(x.verification==='verifie'?1:0)+(x.vedette?1:0)+Math.random()*.5}))
+    .sort((a,b)=>b.k-a.k).slice(0,6).map(o=>o.x);
+  if(!list.length)return '';
+  return '<section class="stack also"><div class="sec-title"><h2>Vous aimerez aussi</h2><a href="#accueil" class="small" style="font-weight:700;margin-left:auto">Toutes les boutiques ›</a></div><div class="also-row">'+list.map(shopCard).join('')+'</div><a class="btn btn-v btn-block" href="#accueil">'+ic('home',18,'#fff')+'Voir toutes les boutiques</a></section>';}
 function reviewsHTML(s){const r=S.reviews.filter(x=>x.shop_id===s.id&&x.visible),R=rating(s.id),done=lsGet('gbairai-avis',[]).includes(s.id);
   const dist=[5,4,3,2,1].map(k=>[k,r.filter(x=>x.note===k).length]);
   return '<section class="card stack"><div class="row between"><h2 style="font-size:17px">Avis des clients</h2>'+(R.n?'<span class="row" style="gap:6px">'+stars(R.avg,16)+'<b class="num">'+R.avg.toFixed(1)+'</b></span>':'')+'</div>'+
