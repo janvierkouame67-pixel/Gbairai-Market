@@ -309,3 +309,35 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opa
 .safebar span{flex:1;display:flex;flex-direction:column}.safebar small{font-size:12.5px;color:#047857}
 .safebar svg:last-child{transform:rotate(180deg)}
 .codebox input::placeholder{letter-spacing:normal;font-weight:500}
+
+/* ---------- Rayons en photos ---------- */
+.rayons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.rayon{position:relative;display:block;border-radius:18px;overflow:hidden;height:108px;background:#fff;text-decoration:none;cursor:pointer;box-shadow:0 4px 0 #E4DCF7,0 12px 20px -12px rgba(27,16,51,.35);transition:transform .15s}
+.rayon:hover{transform:translateY(-2px)}
+.rayon img,.rayon .r-ico{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.r-ico{display:grid;place-items:center;padding-bottom:22px;background:linear-gradient(145deg,#8B5CF6,#5B21B6)}
+.rayon b{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 7px;color:#fff;font-family:Sora,sans-serif;font-size:12.5px;line-height:1.15;background:linear-gradient(transparent,rgba(27,16,51,.85))}
+.rayon small{position:absolute;top:7px;right:7px;background:rgba(255,255,255,.94);color:#5B21B6;font-weight:800;font-size:10.5px;padding:2px 7px;border-radius:99px}
+.rayon input{position:absolute;opacity:0;pointer-events:none}
+.rcover{position:relative;height:150px;border-radius:22px;overflow:hidden;background:#fff}
+.rcover img,.rcover .r-ico{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.rcover>div{position:absolute;inset:0;background:linear-gradient(90deg,rgba(59,15,135,.92),rgba(59,15,135,.15));color:#fff;padding:18px;display:flex;flex-direction:column;justify-content:center}
+.rcover h2{font-size:24px;margin:0;color:#fff}.rcover p{margin:4px 0 0;color:#E9E2FB;font-size:13px}
+.rpick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.rpick .rayon{height:76px;border-radius:14px}.rpick .rayon b{font-size:10.5px;padding:12px 5px 5px}
+.rpick .rayon.on,.rpick .rayon:has(input:checked){outline:3px solid #FF7A1A;outline-offset:2px}
+.rpick .rayon:focus-within{outline:3px solid #A78BFA;outline-offset:2px}
+.radm{display:grid;grid-template-columns:1fr;gap:12px}
+.radm-it{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:start;padding:10px;border-radius:16px;background:#F7F4FD}
+.radm-it .rayon{height:84px;border-radius:14px}.radm-it .rayon b{font-size:10.5px;padding:12px 5px 5px}
+.tchip{display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:99px;padding:4px 10px;font-size:12px;font-weight:600;box-shadow:0 2px 0 #E4DCF7}
+.tchip button{border:0;background:none;cursor:pointer;font-weight:800;color:var(--muted);padding:0 0 0 2px}
+.linkbtn{border:0;background:none;padding:0;color:#6D28D9;font-weight:700;cursor:pointer;font-size:inherit;text-decoration:underline}
+a.badge{text-decoration:none}
+@media (min-width:900px){
+  .rayons{grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  .rayon{height:136px}.rayon b{font-size:14px}
+  .rpick{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .rcover{height:200px}.rcover h2{font-size:32px}
+  .radm{grid-template-columns:1fr 1fr}
+}
