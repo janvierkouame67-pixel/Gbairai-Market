@@ -117,7 +117,7 @@ function tile(p,h,iconSize){
 }
 function avatar(s,size){return '<div class="avatar" style="background:'+lin(s.couleur)+(size?';width:'+size+'px;height:'+size+'px':'')+'">'+esc(initials(s.nom))+'</div>';}
 const verifBadge=s=>s.verification==='verifie'?VERIF:'';
-function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="logo" href="#accueil"><span class="logo-mark">'+ic('bag',22,'#fff')+'</span><span class="logo-name">'+esc(n)+'<i>.</i></span></a>';}
+function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="logo" href="#accueil"><span class="logo-mark img"><img src="icons/logo.svg" alt=""></span><span class="logo-name">'+esc(n)+'<i>.</i></span></a>';}
 function back(href,label){return '<a class="icon-btn" href="'+href+'" aria-label="'+(label||'Retour')+'">'+ic('back')+'</a>';}
 
 /* ---------- CLIENT ---------- */

@@ -1,0 +1,16 @@
+{
+  "name": "Gbairai Market",
+  "short_name": "Gbairai",
+  "description": "Toutes les boutiques d'Abidjan au même endroit. Commandez directement sur WhatsApp.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F3FF",
+  "theme_color": "#5B21B6",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
