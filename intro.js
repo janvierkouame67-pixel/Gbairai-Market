@@ -56,7 +56,12 @@
   '#intro .in-btns{display:flex;flex-direction:column;gap:10px;width:100%}'+
   '#intro .in-go{border:0;border-radius:18px;padding:16px;font:700 16px var(--display);cursor:pointer;color:#fff;background:linear-gradient(180deg,#FF9A4D,#FF7A1A);box-shadow:0 6px 0 #C2410C,0 18px 30px -10px rgba(255,122,26,.6)}'+
   '#intro .in-sell{border:0;border-radius:18px;padding:14px;font:700 15px var(--display);cursor:pointer;color:#fff;background:rgba(255,255,255,.1)}'+
-  '@media (prefers-reduced-motion:reduce){.in-pill{animation:none}}';
+  '@media (prefers-reduced-motion:reduce){.in-pill{animation:none}}'+
+  '@media (min-width:900px){#intro .in-top{max-width:1180px;padding-left:40px;padding-right:40px}#intro .in-brand{font-size:22px}#intro .in-brand img{width:40px;height:40px}#intro .in-skip{font-size:16px;padding:10px 20px}'+
+  '#intro .in-slide{flex-direction:row;gap:clamp(40px,8vw,140px);padding:0 60px}#intro .in-txt{text-align:left;max-width:520px}#intro h2{font-size:clamp(36px,3.6vw,54px);margin-bottom:16px}#intro p{font-size:19px}'+
+  '#intro .in-art{width:340px;height:340px;min-height:0;transform:scale(1.45);margin:0 90px}'+
+  '#intro .in-bot{max-width:560px;padding-bottom:40px}#intro .in-btns{flex-direction:row}#intro .in-btns button{flex:1}}'+
+  '@media (min-width:900px) and (max-height:700px){#intro .in-art{transform:scale(1.15);margin:0 40px}}';
   document.head.appendChild(css);
 
   var el=document.createElement('div');el.id='intro';el.setAttribute('role','dialog');el.setAttribute('aria-label','Bienvenue sur Gbairai Market');
