@@ -71,17 +71,19 @@ async function product(o){
   else{const pc=pal(p.couleur),g=x.createRadialGradient(CX+250,CY+250,40,CX+CW/2,CY+CH/2,700);g.addColorStop(0,pc[0]);g.addColorStop(.55,pc[1]);g.addColorStop(1,pc[2]);x.fillStyle=g;x.fillRect(CX,CY,CW,CH);x.fillStyle='rgba(255,255,255,.9)';x.font='800 300px Sora, sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(ini(p.nom),540,CY+CH/2);}
   x.restore();x.restore();
   // pastille « Nouveau » ou « Stock limité »
-  const low=p.stock>0&&p.stock<=3;
+  const promo=p.prix_barre&&p.prix_barre>p.prix,low=!promo&&p.stock>0&&p.stock<=3;
   x.save();x.translate(900,300);x.rotate(.18);x.shadowColor='rgba(0,0,0,.35)';x.shadowBlur=24;x.shadowOffsetY=10;
   ball(x,0,0,118,'#FFE08A','#FF9A1A','#E05A00');x.shadowColor='transparent';
   x.fillStyle='#1B1033';x.textAlign='center';x.textBaseline='middle';x.font='800 '+(low?34:40)+'px Sora, sans-serif';
-  if(low){x.fillText('Plus que',0,-22);x.font='800 52px Sora, sans-serif';x.fillText(p.stock+' !',0,28);}else{x.fillText('NOUVEAU',0,4);}
+  if(promo){x.font='800 64px Sora, sans-serif';x.fillText('-'+Math.round((1-p.prix/p.prix_barre)*100)+'%',0,6);}
+  else if(low){x.fillText('Plus que',0,-22);x.font='800 52px Sora, sans-serif';x.fillText(p.stock+' !',0,28);}else{x.fillText('NOUVEAU',0,4);}
   x.restore();
   // nom + prix
   x.textAlign='left';x.textBaseline='alphabetic';x.fillStyle='#fff';x.font='800 70px Sora, sans-serif';
   const lines=wrap(x,p.nom,940,2);let y=1218;lines.forEach(l=>{x.fillText(l,70,y);y+=82;});
   x.save();x.shadowColor='rgba(0,0,0,.35)';x.shadowBlur=24;x.shadowOffsetY=10;
-  pill(x,70,y-40,124,fmt(p.prix)+' FCFA','#FF7A1A','#1B1033','800 76px Sora, sans-serif',44);x.restore();
+  const pw=pill(x,70,y-40,124,fmt(p.prix)+' FCFA','#FF7A1A','#1B1033','800 76px Sora, sans-serif',44);x.restore();
+  if(promo){x.font='700 46px Sora, sans-serif';x.fillStyle='rgba(255,255,255,.7)';x.textAlign='left';x.textBaseline='middle';const ot=fmt(p.prix_barre);const ox=70+pw+28;if(ox+x.measureText(ot).width<1040){x.fillText(ot,ox,y+24);x.fillRect(ox-4,y+22,x.measureText(ot).width+8,5);}}
   // avantages
   const by=y+118;x.font='700 32px Inter, sans-serif';
   let bx=70,yy=by;perks(s).forEach(t=>{x.font='700 30px Inter, sans-serif';const w=x.measureText('✓ '+t).width+52;if(bx>70&&bx+w>1010){bx=70;yy+=80;}if(yy<1470)bx+=pill(x,bx,yy,66,'✓ '+t,'rgba(255,255,255,.16)','#fff','700 30px Inter, sans-serif',26)+16;});
