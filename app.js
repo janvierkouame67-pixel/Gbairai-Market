@@ -85,7 +85,7 @@ const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xx
 let ck=lsGet('gbairai-ck',null);if(!/^[0-9a-f-]{36}$/i.test(String(ck||''))){ck=uuid();lsSet('gbairai-ck',ck);}
 let convMap=lsGet('gbairai-convs',{})||{};
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={recu:{},espace:{},rel:null,cli:null,nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -177,6 +177,17 @@ const isFav=id=>favs.includes(id);
 function rating(shopId){const r=S.reviews.filter(x=>x.shop_id===shopId&&x.visible);return {n:r.length,avg:r.length?r.reduce((a,x)=>a+x.note,0)/r.length:0};}
 function stars(v,size){size=size||14;let h='<span class="stars" role="img" aria-label="'+v.toFixed(1)+' sur 5">';for(let i=1;i<=5;i++)h+='<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="'+(v>=i-.25?'#F59E0B':v>=i-.75?'#FBD38D':'#E4DCF8')+'"/></svg>';return h+'</span>';}
 function ratingHTML(shopId,small){const r=rating(shopId);return r.n?'<span class="rating">'+stars(r.avg,small?12:15)+' <b class="num">'+r.avg.toFixed(1)+'</b> <span class="muted">('+r.n+')</span></span>':'';}
+const baseUrl=()=>isLocal()?location.origin+location.pathname:location.origin+'/';
+const recuUrl=id=>baseUrl()+'#recu-'+id;
+const refUrl=(slug,c)=>isLocal()?baseUrl()+'?c='+encodeURIComponent(c)+'#boutique-'+slug:location.origin+'/b/'+encodeURIComponent(slug)+'?c='+encodeURIComponent(c);
+const espaceUrl=sec=>baseUrl()+'#commercial-'+sec;
+const PAYE=[['especes','Espèces'],['wave','Wave'],['orange','Orange Money'],['mtn','MTN MoMo'],['moov','Moov Money'],['credit','À crédit']];
+const payeName=v=>(PAYE.find(x=>x[0]===v)||['',''])[1];
+const recuNo=n=>String(n||0).padStart(5,'0');
+const dfr=x=>{const d=new Date(x);return isNaN(d)?String(x||'').slice(0,10):d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});};
+const moisFr=m=>{const a=m.split('-').map(Number);return new Date(a[0],a[1]-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});};
+const addMonth=(m,k)=>{const a=m.split('-').map(Number),d=new Date(a[0],a[1]-1+k,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+const sumT=a=>a.reduce((x,o)=>x+(o.total||o.montant||0),0);
 const trackUrl=id=>(isLocal()?location.origin+location.pathname:location.origin+'/')+'#suivi-'+id;
 const cartCount=()=>cart.reduce((a,l)=>a+l.qty,0);
 const isAdmin=()=>S.role==='admin';
@@ -197,9 +208,9 @@ async function loadAll(){
     const sess=await sb.auth.getSession();S.user=sess.data.session?sess.data.session.user:null;S.token=sess.data.session?sess.data.session.access_token:null;
     if(S.user&&!S.expChecked){S.expChecked=true;await safe(sb.rpc('expirer_abonnements'));}
     const [st,shops,prods]=await Promise.all([q(sb.from('settings').select('*').eq('id',1).single()),q(sb.from('shops').select('*').order('created_at')),q(sb.from('products').select('*').order('created_at',{ascending:false}))]);
-    S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];
+    S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];S.versements=[];S.commerciaux=[];
     const [rv,bn]=await Promise.all([safe(sb.from('reviews').select('*').order('created_at',{ascending:false}).limit(3000)),safe(sb.from('banners').select('*').order('ordre').order('created_at',{ascending:false}))]);
-    S.reviews=rv;S.banners=bn;S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
+    S.reviews=rv;S.banners=bn;S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
     if(S.user){
       const prof=await q(sb.from('profiles').select('role').eq('id',S.user.id).maybeSingle());
       S.role=prof&&prof.role==='admin'?'admin':'vendeur';
@@ -214,6 +225,7 @@ async function loadAll(){
         const [o,t,p]=await Promise.all([q(sb.from('orders').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false})),q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false})),q(sb.from('shop_private').select('*').eq('shop_id',mine.id))]);
         S.orders=o;S.txs=t;p.forEach(x=>S.priv[x.shop_id]=x);
         S.payments=await safe(sb.from('payments').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false}));
+        const [vs_,cm_]=await Promise.all([safe(sb.from('versements').select('*').eq('shop_id',mine.id).order('date',{ascending:false})),safe(sb.from('commerciaux').select('*').eq('shop_id',mine.id).order('created_at'))]);S.versements=vs_;S.commerciaux=cm_;
         S.nbAb=await sb.rpc('nb_abonnes',{sid:mine.id}).then(r=>typeof r.data==='number'?r.data:0,()=>0);
         try{await loadConvs(mine.id);}catch(e){}
       }
@@ -477,7 +489,7 @@ function vBoutique(slug){
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
   (lines.length?'<a class="btn btn-v btn-block" href="#panier" style="justify-content:space-between"><span>'+lines.reduce((a,l)=>a+l.qty,0)+' article(s) · <span class="num">'+fmtN(tot)+' FCFA</span></span><span>Voir le panier</span></a>':'')+
-  reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
+  pointsHTML(s)+reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
 }
 function alsoHTML(s){const cats=new Set(shopProducts(s.id).map(p=>p.categorie).concat([s.categorie])),v=villeOf(s);
   const list=S.shops.filter(x=>x.id!==s.id&&x.statut==='actif').map(x=>({x,k:(x.categorie===s.categorie?3:0)+(shopProducts(x.id).some(p=>cats.has(p.categorie))?1:0)+(villeOf(x)===v?2:0)+(x.verification==='verifie'?1:0)+(x.vedette?1:0)+Math.random()*.5}))
@@ -547,6 +559,7 @@ function vSuivi(id){
   if(step>=0&&step<4&&d.statut!=='annulee')h+=alertCard('Être prévenu à chaque étape');
   h+=installCard('Suivez vos commandes en un geste, même sans chercher le lien.');
   h+='<div class="card stack" style="gap:6px">'+(d.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><b>Total</b><b class="price num">'+F(d.total)+'</b></div></div>';
+  if(d.statut==='confirmee')h+='<a class="btn btn-w btn-block" href="#recu-'+esc(id)+'">🧾 Voir mon reçu</a>';
   h+='<div class="grid2">'+(d.livreur_tel&&step===3?'<a class="btn btn-g" href="tel:'+esc(d.livreur_tel.replace(/\s/g,''))+'">📞 Appeler le livreur</a>':'<a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/'+waNum(d.whatsapp)+'?text='+encodeURIComponent('Bonjour, où en est ma commande n° '+String(id).slice(0,8).toUpperCase()+' ?')+'">'+ic('wa',20,'#fff')+'Écrire au vendeur</a>')+
     (sh?'<button type="button" class="btn btn-r" data-a="report" data-id="'+sh.id+'" data-motif="Produit non reçu" data-oid="'+esc(id)+'">⚠ Un problème</button>':'')+'</div>';
   return h+'<a class="btn btn-w btn-block" href="#boutique-'+esc(d.slug)+'">Revoir la boutique</a></div>';
@@ -598,9 +611,9 @@ function vVendeur(){
   if(!S.user)return authForms('Votre boutique en ligne, gratuite','Un lien à partager sur vos statuts WhatsApp, TikTok et Facebook.',true);
   const s=myShop();
   if(!s)return '<div class="wrap">'+logoHTML()+(isAdmin()?'<div class="note">Vous êtes connecté en administrateur. <a href="#admin">Aller à l\'administration</a></div>':'')+'<form class="card stack" data-f="newshop"><h1 style="font-size:19px">Créer ma boutique</h1><label class="lbl">Nom de la boutique<input class="in" id="n-nom" name="nom" required></label><label class="lbl">Numéro WhatsApp<input class="in" id="n-wa" name="phone" type="tel" required value="'+esc((S.user.user_metadata||{}).phone||'')+'"></label>'+locFields('n')+'<label class="lbl">Catégorie<select class="in" id="n-c" name="categorie">'+CATS().map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nom)+'</option>').join('')+'</select></label><button class="btn btn-v btn-block" type="submit">Créer</button></form><button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button></div>';
-  const tabs=[['accueil','Accueil'],['messages','Messages'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['abonnement','Abonnement'],['reglages','Réglages']];
+  const tabs=[['accueil','Accueil'],['messages','Messages'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['equipe','Équipe'],['abonnement','Abonnement'],['reglages','Réglages']];
   const pending=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='envoyee').length;
-  const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,abonnement:vvAbonnement,reglages:vvReglages}[ui.vTab]||vvAccueil;
+  const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,equipe:vvEquipe,abonnement:vvAbonnement,reglages:vvReglages}[ui.vTab]||vvAccueil;
   return '<div class="wrap"><div class="row between"><div class="row">'+avatar(s,44)+'<div><h1 style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><a class="btn btn-w btn-s" href="#boutique-'+esc(s.slug)+'">Voir ma page</a></div>'+
   '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+f(s)+'</div>';
 }
@@ -665,11 +678,13 @@ function vvStock(s){
   '<div class="note">Quand vous confirmez une vente dans « Commandes », le stock baisse tout seul. À 0, le produit n\'est plus proposé aux clients.</div>';
 }
 function vvCaisse(s){
+  if(ui.rel)return vvReleve(s);
   const all=S.txs.filter(t=>t.shop_id===s.id);
   const tx=ui.caissePeriode==='mois'?all.filter(t=>monthOf(t.date)===monthOf(today())):ui.caissePeriode==='jour'?all.filter(t=>t.date===today()):all;
   const rec=tx.filter(t=>t.type==='recette').reduce((a,t)=>a+t.montant,0),dep=tx.filter(t=>t.type==='depense').reduce((a,t)=>a+t.montant,0);
   return '<div class="tabs">'+[['jour','Aujourd\'hui'],['mois','Ce mois'],['tout','Tout']].map(x=>'<button type="button" class="tab'+(ui.caissePeriode===x[0]?' on':'')+'" data-a="periode" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
   '<section class="hero"><span class="ball g" style="right:-24px;top:-24px;width:100px;height:100px"></span><p style="margin:0">Bénéfice</p><div class="num" style="position:relative;font-family:var(--display);font-weight:800;font-size:30px">'+(rec-dep>=0?'+':'−')+fmtN(Math.abs(rec-dep))+' F</div><div class="grid2" style="position:relative;margin-top:12px"><div style="padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.14)"><div class="small" style="color:#E9DDFF">Recettes</div><b class="num" style="font-family:var(--display);color:#A7F3D0">'+F(rec)+'</b></div><div style="padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.14)"><div class="small" style="color:#E9DDFF">Dépenses</div><b class="num" style="font-family:var(--display);color:#FFD4A8">'+F(dep)+'</b></div></div></section>'+
+  '<button type="button" class="btn btn-v btn-block" data-a="releve" data-id="'+monthOf(today())+'">📄 Relevé du mois (PDF, WhatsApp)</button>'+
   '<form class="card stack" data-f="tx"><h2 style="font-size:16px">Ajouter un mouvement</h2><div class="grid2"><label class="lbl">Type<select class="in" id="t-type" name="type"><option value="recette">Recette (entrée)</option><option value="depense">Dépense (sortie)</option></select></label><label class="lbl">Montant (FCFA)<input class="in" id="t-mt" name="montant" inputmode="numeric" required placeholder="5000"></label></div><label class="lbl">Libellé<input class="in" id="t-lib" name="libelle" required placeholder="Ex. : achat tissu, transport, vente…"></label><label class="lbl">Date<input class="in" id="t-date" name="date" type="date" value="'+today()+'"></label><button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+
   '<div class="small muted" style="font-weight:700;letter-spacing:.4px">MOUVEMENTS</div>'+
   (tx.length?'<div class="card" style="padding:4px 14px">'+tx.map((t,i)=>'<div class="row" style="padding:10px 0;'+(i?'border-top:1px solid #F0EAFB':'')+'"><span style="width:36px;height:36px;flex-shrink:0;border-radius:12px;display:grid;place-items:center;background:'+(t.type==='recette'?'var(--green-soft)':'var(--orange-soft)')+'"><b style="color:'+(t.type==='recette'?'var(--green)':'#9A3412')+'">'+(t.type==='recette'?'+':'−')+'</b></span><span style="flex:1;min-width:0"><span class="ell" style="display:block;font-weight:600;font-size:13px">'+esc(t.libelle)+'</span><span class="small muted">'+esc(t.date)+'</span></span><b class="num" style="color:'+(t.type==='recette'?'var(--green)':'#9A3412')+'">'+(t.type==='recette'?'+':'−')+fmtN(t.montant)+'</b><button type="button" class="icon-btn" style="width:34px;height:34px;box-shadow:none;background:var(--soft)" data-a="delTx" data-id="'+t.id+'" aria-label="Supprimer">'+ic('trash',14,'#5E5276')+'</button></div>').join('')+'</div>':'<div class="card muted">Aucun mouvement sur cette période.</div>');
@@ -678,11 +693,100 @@ function vvCommandes(s){
   const ords=S.orders.filter(o=>o.shop_id===s.id);
   const lab={envoyee:['Nouvelle','b-orange'],confirmee:['Vendue','b-green'],annulee:['Annulée','b-grey']};
   return '<div class="note">Chaque fois qu\'un client clique sur « Commander », la commande apparaît ici. Confirmez-la quand le client a payé : la recette s\'ajoute à la caisse et le stock baisse.</div>'+
-  (ords.length?ords.map(o=>'<div class="card stack" style="gap:8px"><div class="row between"><b>Commande du '+esc(String(o.created_at).slice(0,10))+'</b><span class="badge '+lab[o.statut][1]+'">'+lab[o.statut][0]+'</span></div>'+(o.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><span class="muted small">Via '+(o.canal==='telegram'?'Telegram':'WhatsApp')+' · n° '+esc(String(o.id).slice(0,8).toUpperCase())+'</span><b class="price num">'+fmtN(o.total)+' FCFA</b></div>'+
+  (ords.length?ords.map(o=>'<div class="card stack" style="gap:8px"><div class="row between"><b>Commande du '+esc(String(o.created_at).slice(0,10))+'</b><span class="badge '+lab[o.statut][1]+'">'+lab[o.statut][0]+'</span></div>'+(o.items||[]).map(it=>'<div class="row between small"><span>'+it.qty+' × '+esc(it.nom)+(it.taille?' ('+esc(it.taille)+')':'')+'</span><span class="num">'+F(it.prix*it.qty)+'</span></div>').join('')+'<div class="row between"><span class="muted small">Via '+(o.canal==='telegram'?'Telegram':'WhatsApp')+' · n° '+esc(String(o.id).slice(0,8).toUpperCase())+(o.commercial_code?' · 👤 '+esc(o.commercial_code):'')+'</span><b class="price num">'+fmtN(o.total)+' FCFA</b></div>'+
   (o.client_nom||o.client_tel||o.client_adresse?'<div class="clientbox small">'+ic('user',14,'#5B21B6')+'<span>'+esc([o.client_nom,o.client_tel,o.client_adresse].filter(Boolean).join(' · '))+'</span></div>':'')+
-  (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?livBlock(o,s):'')+
+  (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?recuBlock(o,s)+livBlock(o,s):'')+
   (o.statut==='envoyee'?'<div class="grid2"><button type="button" class="btn btn-g btn-s" data-a="confOrder" data-id="'+o.id+'">Confirmer la vente</button><button type="button" class="btn btn-w btn-s" data-a="cancelOrder" data-id="'+o.id+'">Annuler</button></div>':'')+'</div>').join(''):'<div class="card muted">Pas encore de commande. Partagez votre lien sur vos statuts.</div>');
 }
+/* ---------- REÇUS, RELEVÉS, ÉQUIPE ---------- */
+function recuBlock(o,s){const pts=(S.points||[]).filter(p=>p.shop_id===s.id),pm=o.paye_mode||'';
+  let h='<div class="stack recublk" style="gap:8px"><span class="small" style="font-weight:700">🧾 Paiement'+(o.recu_num?' · Reçu n° '+recuNo(o.recu_num):'')+'</span><div class="chips wrapc">'+PAYE.map(x=>'<button type="button" class="chip chip-s'+(pm===x[0]?' on':'')+'" data-a="payeMode" data-id="'+o.id+'" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
+  if(pts.length)h+='<div class="chips wrapc"><span class="small muted" style="align-self:center">Point de vente :</span>'+pts.map(p=>'<button type="button" class="chip chip-s'+(o.point_id===p.id?' on':'')+'" data-a="pointOrder" data-id="'+o.id+'" data-v="'+p.id+'">'+esc(p.nom)+'</button>').join('')+'</div>';
+  const txt='Bonjour '+(o.client_nom||'')+', voici votre reçu'+(o.recu_num?' n° '+recuNo(o.recu_num):'')+' de '+s.nom+' ('+fmtN(o.total)+' FCFA'+(pm?', '+payeName(pm).toLowerCase():'')+') :\n'+recuUrl(o.id)+'\nMerci pour votre achat !';
+  h+='<div class="grid2"><a class="btn btn-w btn-s" href="#recu-'+o.id+'">🧾 Voir le reçu</a>'+(o.client_tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(o.client_tel)+'?text='+encodeURIComponent(txt)+'">'+ic('wa',16,'#fff')+'Envoyer le reçu</a>':'<button type="button" class="btn btn-g btn-s" data-a="copy" data-text="'+esc(txt)+'">Copier le reçu</button>')+'</div>';
+  return h+'</div>';}
+function vRecu(id){
+  const d=ui.recu[id];
+  if(d===undefined){ui.recu[id]=null;sb.rpc('recu_public',{oid:id}).then(r=>{ui.recu[id]=(r.data&&r.data[0])||false;render(true);},()=>{ui.recu[id]=false;render(true);});}
+  const seller=S.user&&!isAdmin()&&myShop();
+  let h='<div class="wrap"><div class="row noprint">'+back(seller?'#vendeur':'#suivi-'+esc(id))+'<h1 style="font-size:20px">Reçu</h1></div>';
+  if(!d)return h+'<div class="card">'+(d===false?'<h2 style="font-size:17px">Reçu pas encore disponible</h2><p class="muted" style="margin:0">Le reçu apparaît quand le vendeur a confirmé la vente.</p>':'<p class="muted" style="margin:0">Chargement…</p>')+'</div></div>';
+  const pm=d.paye_mode||'',paid=pm&&pm!=='credit',n=recuNo(d.recu_num),it=d.items||[];
+  h+='<div class="recu" id="recu"><div class="recu-top"><div class="row" style="min-width:0">'+(d.logo?'<img class="recu-logo" src="'+esc(d.logo)+'" alt="">':'<span class="recu-logo ph">'+esc(String(d.boutique||'?').slice(0,1))+'</span>')+'<div style="min-width:0"><b class="recu-shop">'+esc(d.boutique)+'</b><div class="small muted">'+esc([d.quartier,d.ville].filter(Boolean).join(', '))+(d.point?' · '+esc(d.point):'')+'</div><div class="small muted">WhatsApp : '+esc(d.whatsapp||'')+'</div></div></div>'+(pm?'<span class="stamp'+(paid?'':' credit')+'">'+(paid?'PAYÉ':'À CRÉDIT')+'</span>':'')+'</div>'+
+    '<div class="recu-meta"><div><span>Reçu n°</span><b class="num">'+n+'</b></div><div><span>Date</span><b>'+esc(dfr(d.created_at))+'</b></div><div><span>Client</span><b>'+esc(d.client_nom||'—')+'</b></div></div>'+
+    '<table class="recu-t"><thead><tr><th>Article</th><th>Qté</th><th>Prix</th><th>Total</th></tr></thead><tbody>'+it.map(x=>'<tr><td>'+esc(x.nom)+(x.taille?' ('+esc(x.taille)+')':'')+'</td><td class="num">'+x.qty+'</td><td class="num">'+fmtN(x.prix)+'</td><td class="num">'+fmtN(x.prix*x.qty)+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="recu-tot"><span>TOTAL</span><b class="num">'+fmtN(d.total)+' FCFA</b></div>'+
+    (pm?'<div class="small">Paiement : <b>'+esc(payeName(pm))+'</b>'+(pm==='credit'?' (reste à payer)':'')+'</div>':'<div class="small muted">Mode de paiement pas encore indiqué.</div>')+
+    (d.livree_code?'<div class="small" style="color:var(--green);font-weight:700">✔ Livraison confirmée par le code du client</div>':'')+
+    '<div class="recu-foot small muted">Reçu vérifiable en ligne :<br><b>'+esc(recuUrl(id).replace(/^https?:\/\//,''))+'</b><br>Merci pour votre achat · '+esc(S.settings.nom||'Gbairai Market')+'</div></div>';
+  const txt='🧾 Reçu n° '+n+' · '+d.boutique+'\n'+it.map(x=>'• '+x.qty+' × '+x.nom+' – '+F(x.prix*x.qty)).join('\n')+'\nTotal : '+fmtN(d.total)+' FCFA'+(pm?'\nPaiement : '+payeName(pm):'')+'\nVoir le reçu : '+recuUrl(id);
+  h+='<div class="grid2 noprint"><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Partager</a><button type="button" class="btn btn-v" data-a="print">📄 PDF / Imprimer</button></div>';
+  return h+'<p class="small muted noprint" style="text-align:center;margin:0">Pour le PDF : touchez « PDF / Imprimer » puis choisissez « Enregistrer en PDF ».</p></div>';}
+function vvReleve(s){const m=ui.rel,cur=monthOf(today());
+  const tx=S.txs.filter(t=>t.shop_id===s.id&&monthOf(t.date)===m).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const rec=sumT(tx.filter(t=>t.type==='recette')),dep=sumT(tx.filter(t=>t.type==='depense'));
+  const ok=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='confirmee'),om=ok.filter(o=>monthOf(o.created_at)===m),ca=sumT(om),nb=om.length;
+  const vers=(S.versements||[]).filter(v=>v.shop_id===s.id),due=Math.max(0,sumT(ok.filter(o=>o.paye_mode==='credit'))-sumT(vers));
+  const wk=[0,0,0,0,0];tx.filter(t=>t.type==='recette').forEach(t=>{wk[Math.min(4,Math.floor((Number(String(t.date).slice(8,10))-1)/7))]+=t.montant;});const mx=Math.max(1,...wk);
+  let bal=0;const rows=tx.map(t=>{bal+=t.type==='recette'?t.montant:-t.montant;return '<tr><td>'+esc(String(t.date).slice(8,10)+'/'+String(t.date).slice(5,7))+'</td><td>'+esc(t.libelle)+'</td><td class="num" style="color:'+(t.type==='recette'?'var(--green)':'#9A3412')+'">'+(t.type==='recette'?'+':'−')+fmtN(t.montant)+'</td><td class="num">'+fmtN(bal)+'</td></tr>';}).join('');
+  const txt='📄 Relevé de '+moisFr(m)+' · '+s.nom+'\nVentes confirmées : '+nb+' ('+F(ca)+')\nRecettes : '+F(rec)+'\nDépenses : '+F(dep)+'\nBénéfice : '+(rec-dep<0?'−':'')+F(Math.abs(rec-dep))+(due?'\nÀ encaisser (crédits) : '+F(due):'')+'\n'+(S.settings.nom||'Gbairai Market');
+  return '<div class="row between noprint"><button type="button" class="btn btn-w btn-s" data-a="relClose">‹ Caisse</button><div class="row" style="gap:6px"><button type="button" class="icon-btn" style="width:36px;height:36px" data-a="releve" data-id="'+addMonth(m,-1)+'" aria-label="Mois d\'avant">‹</button><b style="min-width:110px;text-align:center;text-transform:capitalize">'+esc(moisFr(m))+'</b><button type="button" class="icon-btn" style="width:36px;height:36px" data-a="releve" data-id="'+addMonth(m,1)+'"'+(m>=cur?' disabled':'')+' aria-label="Mois d\'après">›</button></div></div>'+
+  '<div class="recu" id="recu"><div class="recu-top"><div class="row" style="min-width:0">'+avatar(s,44)+'<div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">Relevé de compte · <span style="text-transform:capitalize">'+esc(moisFr(m))+'</span></div></div></div></div>'+
+  '<div class="relk"><div><span>Ventes</span><b class="num">'+nb+'</b></div><div><span>Panier moyen</span><b class="num">'+F(nb?Math.round(ca/nb):0)+'</b></div><div><span>Recettes</span><b class="num" style="color:var(--green)">'+F(rec)+'</b></div><div><span>Dépenses</span><b class="num" style="color:#9A3412">'+F(dep)+'</b></div><div class="big"><span>Bénéfice</span><b class="num">'+(rec-dep<0?'−':'')+F(Math.abs(rec-dep))+'</b></div><div class="big"><span>À encaisser (crédits)</span><b class="num" style="color:'+(due?'#EA580C':'inherit')+'">'+F(due)+'</b></div></div>'+
+  '<div class="small" style="font-weight:700">Recettes par semaine</div><div class="wkbars">'+wk.map((v,i)=>'<div><i style="height:'+Math.round(v/mx*100)+'%"></i><span>S'+(i+1)+'</span></div>').join('')+'</div>'+
+  (rows?'<table class="recu-t"><thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Solde</th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted small" style="margin:0">Aucun mouvement ce mois-ci.</p>')+
+  '<div class="recu-foot small muted">Relevé établi le '+esc(dfr(new Date()))+' · '+esc(S.settings.nom||'Gbairai Market')+'</div></div>'+
+  '<div class="grid2 noprint"><button type="button" class="btn btn-v" data-a="print">📄 PDF / Imprimer</button><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Envoyer</a></div>';}
+function cliStats(s,key){const os=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='confirmee'&&o.client_tel&&waNum(o.client_tel)===key);
+  const vs=(S.versements||[]).filter(v=>v.shop_id===s.id&&waNum(v.client_tel)===key),credit=sumT(os.filter(o=>o.paye_mode==='credit')),verse=sumT(vs);
+  return {os,vs,credit,verse,reste:Math.max(0,credit-verse),achats:sumT(os)};}
+function cliDue(s,tel){const k=waNum(tel),c=cliStats(s,k);
+  return '<div class="row between" style="gap:8px">'+(c.reste?'<span class="badge b-orange">Doit '+F(c.reste)+'</span>':c.credit?'<span class="badge b-green">Crédit soldé ✔</span>':'<span></span>')+'<button type="button" class="btn btn-w btn-s" data-a="cliOpen" data-id="'+esc(k)+'">📄 Relevé du client</button></div>';}
+function vvClient(s,key){const c=cliStats(s,key),o0=S.orders.find(o=>o.shop_id===s.id&&o.client_tel&&waNum(o.client_tel)===key)||{},nom=(S.orders.find(o=>o.shop_id===s.id&&o.client_tel&&waNum(o.client_tel)===key&&o.client_nom)||{}).client_nom||'Client',tel=o0.client_tel||key;
+  const L=c.os.map(o=>({d:String(o.created_at).slice(0,10),t:'Achat'+(o.recu_num?' · reçu n° '+recuNo(o.recu_num):'')+(o.paye_mode?' · '+payeName(o.paye_mode):''),m:o.total,cr:o.paye_mode==='credit'})).concat(c.vs.map(v=>({d:String(v.date).slice(0,10),t:'Versement · '+payeName(v.mode)+(v.note?' · '+v.note:''),m:-v.montant,id:v.id}))).sort((a,b)=>a.d.localeCompare(b.d));
+  let bal=0;const rows=L.map(x=>{if(x.cr)bal+=x.m;else if(x.m<0)bal+=x.m;return '<tr><td>'+esc(x.d.slice(8,10)+'/'+x.d.slice(5,7)+'/'+x.d.slice(2,4))+'</td><td>'+esc(x.t)+(x.id?' <button type="button" class="linkbtn noprint" style="display:inline;padding:0" data-a="delVers" data-id="'+x.id+'" aria-label="Supprimer">✕</button>':'')+'</td><td class="num" style="color:'+(x.m<0?'var(--green)':x.cr?'#EA580C':'inherit')+'">'+(x.m<0?'−'+fmtN(-x.m):fmtN(x.m))+'</td><td class="num">'+(x.cr||x.m<0?fmtN(Math.max(0,bal)):'—')+'</td></tr>';}).join('');
+  const txt='Bonjour '+nom+', voici votre relevé chez '+s.nom+' ('+dfr(new Date())+') :\nAchats : '+F(c.achats)+'\nDont à crédit : '+F(c.credit)+'\nDéjà versé : '+F(c.verse)+'\nReste à payer : '+F(c.reste)+'\nMerci pour votre confiance !';
+  return '<div class="row between noprint"><button type="button" class="btn btn-w btn-s" data-a="cliClose">‹ Clients</button><button type="button" class="btn btn-w btn-s" data-a="print">📄 PDF</button></div>'+
+  '<div class="recu" id="recu"><div class="recu-top"><div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">Relevé du client · '+esc(dfr(new Date()))+'</div></div>'+(c.reste?'<span class="stamp credit">DOIT '+fmtN(c.reste)+' F</span>':c.credit?'<span class="stamp">SOLDÉ</span>':'')+'</div>'+
+  '<div class="recu-meta"><div><span>Client</span><b>'+esc(nom)+'</b></div><div><span>Téléphone</span><b>'+esc(tel)+'</b></div><div><span>Achats</span><b class="num">'+c.os.length+'</b></div></div>'+
+  '<div class="relk"><div><span>Total acheté</span><b class="num">'+F(c.achats)+'</b></div><div><span>À crédit</span><b class="num" style="color:#EA580C">'+F(c.credit)+'</b></div><div><span>Déjà versé</span><b class="num" style="color:var(--green)">'+F(c.verse)+'</b></div><div class="big"><span>Reste à payer</span><b class="num">'+F(c.reste)+'</b></div></div>'+
+  (rows?'<table class="recu-t"><thead><tr><th>Date</th><th>Opération</th><th>Montant</th><th>Reste</th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted small" style="margin:0">Pas encore d\'achat confirmé.</p>')+
+  '<div class="recu-foot small muted">'+esc(S.settings.nom||'Gbairai Market')+'</div></div>'+
+  '<form class="card stack noprint" data-f="versement" data-tel="'+esc(key)+'"><h2 style="font-size:16px">+ Enregistrer un versement</h2><div class="grid2"><label class="lbl">Montant (FCFA)<input class="in" name="montant" inputmode="numeric" required placeholder="5000"></label><label class="lbl">Mode<select class="in" name="mode">'+PAYE.filter(x=>x[0]!=='credit').map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></label></div><label class="lbl">Note (facultatif)<input class="in" name="note" maxlength="120" placeholder="Ex. : 2e tranche"></label><button class="btn btn-v btn-block" type="submit">Enregistrer le versement</button><p class="small muted" style="margin:0">La vente est déjà dans votre caisse : le versement réduit seulement ce que le client doit.</p></form>'+
+  '<a class="btn btn-g btn-block noprint" target="_blank" rel="noopener" href="https://wa.me/'+waNum(tel)+'?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Envoyer le relevé au client</a>';}
+function codeFrom(nom,shopId){let b=String(nom||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);if(b.length<2)b='COM'+b;
+  const used=new Set((S.commerciaux||[]).filter(c=>c.shop_id===shopId).map(c=>c.code));let c=b,i=2;while(used.has(c))c=b.slice(0,7)+(i++);return c;}
+function vvEquipe(s){
+  const pts=(S.points||[]).filter(p=>p.shop_id===s.id),ok=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='confirmee'),cms=(S.commerciaux||[]).filter(c=>c.shop_id===s.id);
+  let h='<div class="note">Ajoutez vos points de vente (magasin, stand, dépôt) et vos commerciaux. Chaque commercial reçoit son propre lien : les commandes passées avec son lien sont comptées pour lui.</div>';
+  h+='<div class="sec-title"><h2>Points de vente</h2><span class="cnt-pill">'+pts.length+'</span></div>';
+  h+=pts.map(p=>{const o=ok.filter(x=>x.point_id===p.id);return '<div class="card stack" style="gap:6px"><div class="row between"><b>📍 '+esc(p.nom)+'</b>'+(p.principal?'<span class="badge b-green">Principal</span>':'')+'</div>'+(p.adresse||p.horaires||p.responsable||p.tel?'<div class="small muted">'+esc([p.adresse,p.horaires,p.responsable?'Resp. : '+p.responsable:'',p.tel].filter(Boolean).join(' · '))+'</div>':'')+'<div class="row between small"><span>'+o.length+' vente'+(o.length>1?'s':'')+' confirmée'+(o.length>1?'s':'')+'</span><b class="num">'+F(sumT(o))+'</b></div><button type="button" class="linkbtn" data-a="delPoint" data-id="'+p.id+'">'+ic('trash',13)+'Supprimer</button></div>';}).join('');
+  h+='<form class="card stack" data-f="point"><h2 style="font-size:16px">+ Ajouter un point de vente</h2><label class="lbl">Nom<input class="in" name="nom" required maxlength="60" placeholder="Ex. : Boutique Adjamé"></label><div class="grid2"><label class="lbl">Adresse<input class="in" name="adresse" maxlength="160" placeholder="Marché, rue…"></label><label class="lbl">Horaires<input class="in" name="horaires" maxlength="60" placeholder="8h-19h, lun-sam"></label><label class="lbl">Responsable<input class="in" name="responsable" maxlength="60"></label><label class="lbl">Téléphone<input class="in" name="tel" type="tel" maxlength="30"></label></div><label class="row small" style="gap:8px"><input type="checkbox" name="principal" value="1"> Point principal</label><button class="btn btn-v btn-block" type="submit">Ajouter</button></form>';
+  h+='<div class="sec-title"><h2>Commerciaux</h2><span class="cnt-pill">'+cms.length+'</span></div>';
+  h+=cms.map(c=>{const all=S.orders.filter(o=>o.shop_id===s.id&&o.commercial_code===c.code),v=all.filter(o=>o.statut==='confirmee'),lv=v.filter(o=>o.livree_code),com=Math.round(sumT(lv)*Number(c.commission||0)/100),link=refUrl(s.slug,c.code);
+    const msg='Bonjour '+c.nom+' 👋\nVotre lien de vente pour '+s.nom+' (partagez-le à vos clients et sur vos statuts) :\n'+link+'\n\nVotre espace pour suivre vos ventes et votre commission (ne le partagez pas) :\n'+espaceUrl(c.secret);
+    return '<div class="card stack" style="gap:8px'+(c.actif?'':';opacity:.6')+'"><div class="row between"><span class="row" style="gap:8px;min-width:0"><span class="av-c">'+esc(c.nom.slice(0,1).toUpperCase())+'</span><span style="min-width:0"><b class="ell" style="display:block">'+esc(c.nom)+'</b><span class="small muted">Code <b>'+esc(c.code)+'</b> · '+esc(String(c.commission))+' %'+(c.tel?' · '+esc(c.tel):'')+'</span></span></span>'+(c.actif?'':'<span class="badge b-grey">En pause</span>')+'</div>'+
+    '<div class="relk sm"><div><span>Commandes</span><b class="num">'+all.length+'</b></div><div><span>Ventes</span><b class="num">'+F(sumT(v))+'</b></div><div><span>Livrées ✔</span><b class="num">'+lv.length+'</b></div><div><span>Commission</span><b class="num" style="color:var(--green)">'+F(com)+'</b></div></div>'+
+    '<div class="grid2"><button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(link)+'">🔗 Copier son lien</button>'+(c.tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.tel)+'?text='+encodeURIComponent(msg)+'">'+ic('wa',16,'#fff')+'Lui envoyer</a>':'<button type="button" class="btn btn-g btn-s" data-a="copy" data-text="'+esc(msg)+'">Copier pour lui</button>')+'</div>'+
+    '<div class="row between"><button type="button" class="linkbtn" data-a="cmActif" data-id="'+c.id+'" data-v="'+(c.actif?'0':'1')+'">'+(c.actif?'⏸ Mettre en pause':'▶ Réactiver')+'</button><button type="button" class="linkbtn" data-a="delCm" data-id="'+c.id+'">'+ic('trash',13)+'Supprimer</button></div></div>';}).join('');
+  h+='<form class="card stack" data-f="commercial"><h2 style="font-size:16px">+ Ajouter un commercial</h2><div class="grid2"><label class="lbl">Nom<input class="in" name="nom" required maxlength="60" placeholder="Ex. : Koffi"></label><label class="lbl">WhatsApp<input class="in" name="tel" type="tel" maxlength="30"></label></div><label class="lbl">Commission (%)<input class="in" name="commission" inputmode="decimal" value="10"></label><p class="small muted" style="margin:0">La commission compte seulement les ventes livrées et confirmées par le code du client.</p><button class="btn btn-v btn-block" type="submit">Ajouter</button></form>';
+  return h;}
+function pointsHTML(s){const pts=(S.points||[]).filter(p=>p.shop_id===s.id).sort((a,b)=>(b.principal?1:0)-(a.principal?1:0));if(!pts.length)return '';
+  return '<section class="card stack"><h2 style="font-size:17px">Nos points de vente</h2>'+pts.map(p=>'<div class="row" style="gap:10px;align-items:flex-start">'+ic('pin',18,'#5B21B6')+'<div style="min-width:0"><b>'+esc(p.nom)+'</b>'+(p.principal?' <span class="badge b-green">Principal</span>':'')+(p.adresse||p.horaires?'<div class="small muted">'+esc([p.adresse,p.horaires].filter(Boolean).join(' · '))+'</div>':'')+(p.tel?'<a class="small" style="font-weight:700" href="tel:'+esc(p.tel.replace(/\s/g,''))+'">📞 '+esc(p.tel)+'</a>':'')+'</div></div>').join('')+'</section>';}
+function vCommercial(sec){
+  const d=ui.espace[sec];
+  if(d===undefined){ui.espace[sec]=null;sb.rpc('espace_commercial',{sec}).then(r=>{ui.espace[sec]=(r.data&&r.data[0])||false;render(true);},()=>{ui.espace[sec]=false;render(true);});}
+  let h='<div class="wrap">'+logoHTML();
+  if(!d)return h+'<div class="card">'+(d===false?'<h2 style="font-size:17px">Espace introuvable</h2><p class="muted" style="margin:0">Ce lien n\'est plus valable. Demandez un nouveau lien à la boutique.</p>':'<p class="muted" style="margin:0">Chargement…</p>')+'</div></div>';
+  const v=d.ventes||[],ok=v.filter(x=>x.statut==='confirmee'),lv=ok.filter(x=>x.code),com=Math.round(sumT(lv)*Number(d.commission||0)/100),link=refUrl(d.slug,d.code);
+  const lab={envoyee:['Nouvelle','b-orange'],confirmee:['Vendue','b-green'],annulee:['Annulée','b-grey']};
+  h+='<section class="hero"><span class="ball g" style="right:-24px;top:-24px;width:100px;height:100px"></span><p style="margin:0">Bonjour '+esc(d.nom)+' · commercial de '+esc(d.boutique)+'</p><div class="small" style="color:#E9DDFF;margin-top:8px">Votre commission</div><div class="num" style="position:relative;font-family:var(--display);font-weight:800;font-size:30px">'+F(com)+'</div><div class="small" style="color:#E9DDFF">'+esc(String(d.commission))+' % des ventes livrées et confirmées par le client</div></section>'+
+  '<div class="kpis">'+kpi(v.length,'Commandes')+kpi(ok.length,'Ventes confirmées')+kpi(F(sumT(ok)),'Chiffre d\'affaires')+kpi(lv.length,'Livrées ✔')+'</div>'+
+  '<section class="card stack"><h2 style="font-size:16px">Votre lien de vente</h2><p class="small muted" style="margin:0">Partagez ce lien à vos clients et sur vos statuts. Chaque commande passée avec ce lien compte pour vous (code <b>'+esc(d.code)+'</b>).</p><div class="linkbox small">'+esc(link)+'</div><div class="grid2"><button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(link)+'">🔗 Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent('🛍 Commandez chez '+d.boutique+' : '+link)+'">'+ic('wa',16,'#fff')+'Partager</a></div></section>'+
+  '<div class="sec-title"><h2>Vos ventes (4 derniers mois)</h2><span class="cnt-pill">'+v.length+'</span></div>'+
+  (v.length?'<div class="card" style="padding:4px 14px">'+v.map((x,i)=>'<div class="row between" style="padding:10px 0;'+(i?'border-top:1px solid #F0EAFB':'')+'"><span style="min-width:0"><b style="display:block;font-size:13px">'+esc(x.client||'Client')+' · n° '+esc(String(x.id).toUpperCase())+'</b><span class="small muted">'+esc(dfr(x.date))+(x.code?' · livrée ✔':'')+'</span></span><span class="row" style="gap:6px"><span class="badge '+(lab[x.statut]||lab.envoyee)[1]+'">'+(lab[x.statut]||lab.envoyee)[0]+'</span><b class="num">'+F(x.total)+'</b></span></div>').join('')+'</div>':'<div class="card muted">Pas encore de vente avec votre lien.</div>')+
+  '<p class="small muted" style="text-align:center;margin:0">Cette page est personnelle : ne partagez pas son lien.</p>';
+  return h+'</div>';}
 function fiabHTML(tel,shopId){const k=waNum(tel);
   if(ui.fiab[k]===undefined){ui.fiab[k]=null;sb.rpc('fiabilite_client',{tel}).then(r=>{ui.fiab[k]=(r.data&&r.data[0])||false;render(true);},()=>{ui.fiab[k]=false;render(true);});}
   const f=ui.fiab[k];if(!f)return '';
@@ -704,13 +808,14 @@ function livBlock(o,s){const lv=o.livraison||'attente',n=String(o.id).slice(0,8)
   return h+'</div>';}
 function showClientRep(tel,shopId){document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="clientRep" data-id="'+shopId+'" data-tel="'+esc(tel)+'"><h2 style="font-size:17px">Signaler ce client</h2><p class="small muted" style="margin:0">Numéro : <b>'+esc(tel)+'</b>. L\'administrateur vérifie puis peut bloquer ce numéro sur toute la plateforme.</p><label class="lbl">Motif<select class="in" name="motif">'+['Commande non récupérée','Faux numéro','Faux paiement / fausse preuve','Insultes ou menaces','Autre'].map(x=>'<option>'+x+'</option>').join('')+'</select></label><label class="lbl">Détails (facultatif)<textarea class="in" name="details" rows="3" maxlength="600"></textarea></label><button class="btn btn-o btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-s" data-a="closeModal">Annuler</button></form></div>';}
 function vvClients(s){
+  if(ui.cli)return vvClient(s,ui.cli);
   const m={};S.orders.filter(o=>o.shop_id===s.id&&(o.client_tel||o.client_nom)).forEach(o=>{const k=o.client_tel?waNum(o.client_tel):'nom:'+o.client_nom.toLowerCase();
     const c=m[k]=m[k]||{nom:'',tel:o.client_tel,adresse:'',n:0,ok:0,total:0,last:o.created_at};c.n++;if(o.client_nom)c.nom=c.nom||o.client_nom;if(o.client_adresse)c.adresse=c.adresse||o.client_adresse;
     if(o.statut==='confirmee'){c.ok++;c.total+=o.total;}if(String(o.created_at)>String(c.last))c.last=o.created_at;});
   const L=Object.values(m).sort((a,b)=>b.total-a.total||b.n-a.n);
   return '<div class="kpis">'+kpi(L.length,'Clients','','hero')+kpi(L.filter(c=>c.ok>1).length,'Clients fidèles (2 achats et +)')+kpi(F(L.reduce((a,c)=>a+c.total,0)),'Total dépensé')+'</div>'+
   '<div class="note">Les clients qui laissent leur nom et leur numéro dans le panier apparaissent ici. Relancez-les sur WhatsApp quand vous avez des nouveautés.</div>'+
-  (L.length?L.map(c=>'<div class="card stack" style="gap:6px"><div class="row between"><b>'+esc(c.nom||'Client')+'</b>'+(c.ok>1?'<span class="badge b-orange">Fidèle</span>':'')+'</div><div class="small muted">'+esc([c.tel,c.adresse].filter(Boolean).join(' · '))+'</div><div class="row between small"><span>'+c.n+' commande'+(c.n>1?'s':'')+' · dernière '+ago(c.last)+'</span><b class="num">'+F(c.total)+'</b></div>'+(c.tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.tel)+'?text='+encodeURIComponent('Bonjour '+(c.nom||'')+' 👋 Nouveautés chez '+s.nom+' ! Venez voir : '+shopUrl(s))+'">'+ic('wa',16,'#fff')+'Relancer sur WhatsApp</a>':'')+'</div>').join(''):'<div class="card muted">Pas encore de fiche client.</div>');
+  (L.length?L.map(c=>'<div class="card stack" style="gap:6px"><div class="row between"><b>'+esc(c.nom||'Client')+'</b>'+(c.ok>1?'<span class="badge b-orange">Fidèle</span>':'')+'</div><div class="small muted">'+esc([c.tel,c.adresse].filter(Boolean).join(' · '))+'</div><div class="row between small"><span>'+c.n+' commande'+(c.n>1?'s':'')+' · dernière '+ago(c.last)+'</span><b class="num">'+F(c.total)+'</b></div>'+(c.tel?cliDue(s,c.tel):'')+(c.tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.tel)+'?text='+encodeURIComponent('Bonjour '+(c.nom||'')+' 👋 Nouveautés chez '+s.nom+' ! Venez voir : '+shopUrl(s))+'">'+ic('wa',16,'#fff')+'Relancer sur WhatsApp</a>':'')+'</div>').join(''):'<div class="card muted">Pas encore de fiche client.</div>');
 }
 const OPS=[['orange','Orange Money','#FF7900'],['mtn','MTN MoMo','#FFCB05'],['moov','Moov Money','#0066B3'],['wave','Wave','#1DC8F2']];
 function vvAbonnement(s){
@@ -917,12 +1022,14 @@ function render(keep){
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
   else if(h.startsWith('suivi-'))html=vSuivi(h.slice(6));
+  else if(h.startsWith('recu-'))html=vRecu(h.slice(5));
+  else if(h.startsWith('commercial-'))html=vCommercial(h.slice(11));
   else if(h==='commandes')html=vMesCommandes();
   else if(h==='verifier')html=vVerifier();
   else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
-  if(h.startsWith('produit-')||h==='panier'||h==='compte'||h.startsWith('suivi-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
+  if(h.startsWith('produit-')||h==='panier'||h==='compte'||h.startsWith('suivi-')||h.startsWith('recu-')||h.startsWith('commercial-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
   const y=window.scrollY;app.innerHTML=html+nav(h);
   if(keep&&lastHash===h)window.scrollTo(0,y);else window.scrollTo(0,0);lastHash=h;
@@ -940,8 +1047,9 @@ function logOrder(shopId,canal,single,id){
   if(!lines.length)return;id=id||uuid();
   const row={id,shop_id:shopId,canal,statut:'envoyee',items:lines.map(l=>({pid:l.p.id,nom:l.p.nom,prix:prix(l.p),qty:l.qty,taille:l.taille||null})),total:lines.reduce((a,l)=>a+prix(l.p)*l.qty,0),
     client_nom:String(client.nom||'').trim().slice(0,80),client_tel:String(client.tel||'').trim().slice(0,30),client_adresse:String(client.adresse||'').trim().slice(0,200)};
+  const rf=lsGet('gbairai-ref',null),sh0=shopById(shopId);if(rf&&sh0&&rf.slug===sh0.slug&&rf.code&&Date.now()-rf.ts<30*864e5)row.commercial_code=String(rf.code).slice(0,20);
   const mkCode=()=>sb.rpc('creer_code',{oid:id,c:code}).then(()=>{},()=>{});
-  sb.from('orders').insert(row).then(r=>{if(r&&r.error){delete row.client_nom;delete row.client_tel;delete row.client_adresse;sb.from('orders').insert(row).then(mkCode,()=>{});}else mkCode();},()=>{});
+  sb.from('orders').insert(row).then(r=>{if(r&&r.error){delete row.commercial_code;delete row.client_nom;delete row.client_tel;delete row.client_adresse;sb.from('orders').insert(row).then(mkCode,()=>{});}else mkCode();},()=>{});
   const code=String(Math.floor(1000+Math.random()*9000));
   const s=shopById(shopId);myOrders=[{id,code,boutique:s?s.nom:'',total:row.total,date:new Date().toISOString()}].concat(myOrders.filter(o=>o.id!==id)).slice(0,30);lsSet('gbairai-mes-commandes',myOrders);setTimeout(pushSync,1500);
   Object.keys(orderIds).forEach(k=>{if(orderIds[k]===id)delete orderIds[k];});
@@ -1012,7 +1120,7 @@ const A={
       ui.vapid={pub,priv:j.d};return act(()=>q(sb.from('settings').update({vapid_public:pub}).eq('id',1)),'Clés créées');}).catch(()=>toast('Impossible de créer les clés'));},
   authMode:t=>{ui.authMode=t.dataset.id;render(true);},
   logout:()=>act(async()=>{await sb.auth.signOut();S.synced=false;S.cnom='';ui.vTab='accueil';ui.adminShop=null;},'Déconnecté'),
-  vtab:t=>{ui.vTab=t.dataset.id;ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
+  vtab:t=>{ui.vTab=t.dataset.id;ui.rel=null;ui.cli=null;ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
   newProd:()=>{const s=myShop();if(s.formule!=='pro'&&shopProducts(s.id).length>=S.settings.limite_gratuit){ui.vTab='produits';render();toast('Limite gratuite atteinte ('+S.settings.limite_gratuit+' produits). Passez Pro.');return;}ui.vTab='produits';ui.edit='new';ui.newColor=Math.floor(Math.random()*6);ui.photo=undefined;ui.extras=undefined;render();},
   editProd:t=>{ui.edit=t.dataset.id;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
   cancelEdit:()=>{ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
@@ -1025,6 +1133,17 @@ const A={
   delProd:t=>act(async()=>{await q(sb.from('products').delete().eq('id',t.dataset.id));cart=cart.filter(l=>l.pid!==t.dataset.id);saveCart();ui.edit=null;ui.confirm=null;},'Produit supprimé'),
   stock:t=>{const p=prodById(t.dataset.id);const v=Math.max(0,p.stock+(+t.dataset.d));p.stock=v;render(true);act(()=>q(sb.from('products').update({stock:v}).eq('id',p.id)));},
   periode:t=>{ui.caissePeriode=t.dataset.id;render(true);},
+  releve:t=>{ui.rel=t.dataset.id;render(true);},
+  relClose:()=>{ui.rel=null;render();},
+  cliOpen:t=>{ui.cli=t.dataset.id;render();},
+  cliClose:()=>{ui.cli=null;render();},
+  print:()=>window.print(),
+  payeMode:t=>{const o=S.orders.find(x=>x.id===t.dataset.id);act(()=>q(sb.from('orders').update({paye_mode:o&&o.paye_mode===t.dataset.v?'':t.dataset.v}).eq('id',t.dataset.id)),'Paiement enregistré');},
+  pointOrder:t=>{const o=S.orders.find(x=>x.id===t.dataset.id);act(()=>q(sb.from('orders').update({point_id:o&&o.point_id===t.dataset.v?null:t.dataset.v}).eq('id',t.dataset.id)),'Point de vente enregistré');},
+  delVers:t=>act(()=>q(sb.from('versements').delete().eq('id',t.dataset.id)),'Versement supprimé'),
+  delPoint:t=>act(()=>q(sb.from('points_vente').delete().eq('id',t.dataset.id)),'Point de vente supprimé'),
+  delCm:t=>act(()=>q(sb.from('commerciaux').delete().eq('id',t.dataset.id)),'Commercial supprimé'),
+  cmActif:t=>act(()=>q(sb.from('commerciaux').update({actif:t.dataset.v==='1'}).eq('id',t.dataset.id))),
   delTx:t=>act(()=>q(sb.from('txs').delete().eq('id',t.dataset.id))),
   confOrder:t=>act(async()=>{const o=S.orders.find(x=>x.id===t.dataset.id);
     await q(sb.from('orders').update({statut:'confirmee'}).eq('id',o.id));notify({kind:'commande',order_id:o.id});
@@ -1112,6 +1231,9 @@ async function createShop(d){
   await q(sb.from('shop_private').insert({shop_id:ins.id}));
 }
 const FORMS={
+  versement:(d,f)=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('versements').insert({shop_id:myShop().id,client_tel:f.dataset.tel,montant:m,mode:d.mode||'especes',note:String(d.note||'').trim().slice(0,120),date:today()}));},'Versement enregistré'),
+  point:d=>act(async()=>{const s=myShop(),pr=!!d.principal;if(pr)await safe(sb.from('points_vente').update({principal:false}).eq('shop_id',s.id));await q(sb.from('points_vente').insert({shop_id:s.id,nom:String(d.nom).trim().slice(0,60),adresse:String(d.adresse||'').trim().slice(0,160),horaires:String(d.horaires||'').trim().slice(0,60),responsable:String(d.responsable||'').trim().slice(0,60),tel:String(d.tel||'').trim().slice(0,30),principal:pr}));},'Point de vente ajouté'),
+  commercial:d=>act(async()=>{const s=myShop(),nom=String(d.nom).trim().slice(0,60);if(!nom)throw new Error('Indiquez le nom.');const cm=Math.max(0,Math.min(50,Math.round(n0(String(d.commission||'0').replace(',','.'))*10)/10));await q(sb.from('commerciaux').insert({shop_id:s.id,nom,tel:String(d.tel||'').trim().slice(0,30),code:codeFrom(nom,s.id),commission:cm}));},'Commercial ajouté'),
   signup:d=>act(async()=>{
     if(waNum(d.phone).length<12)throw new Error('Numéro WhatsApp invalide (10 chiffres).');
     const r=await sb.auth.signUp({email:phoneEmail(d.phone),password:d.password,options:{data:{phone:waNum(d.phone)}}});
@@ -1196,7 +1318,8 @@ document.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();
   const d={};new FormData(f).forEach((v,k)=>d[k]=v);const fn=FORMS[f.dataset.f];if(fn)fn(d,f);
 });
-window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;ui.type=null;ui.dl=undefined;document.getElementById('layer').innerHTML='';render();});
+window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.recu={};ui.espace={};ui.mes=null;ui.taille=null;ui.type=null;ui.dl=undefined;document.getElementById('layer').innerHTML='';render();});
+(function(){try{const c=new URLSearchParams(location.search).get('c');if(!c)return;const code=c.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20),m=(location.hash||'').match(/^#boutique-(.+)$/);if(code&&m)lsSet('gbairai-ref',{slug:decodeURIComponent(m[1]),code,ts:Date.now()});history.replaceState(null,'',location.pathname+location.hash);}catch(e){}})();
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
 function ping(){if(S.user&&!isAdmin()&&myShop()&&!document.hidden)sb.rpc('je_suis_la').then(()=>{},()=>{});}

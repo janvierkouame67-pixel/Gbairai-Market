@@ -23,6 +23,7 @@ module.exports = async (req, res) => {
   try {
     if (q.b && /^[a-z0-9-]{1,80}$/.test(q.b)) {
       target = '/#boutique-' + q.b; url = base + '/b/' + q.b;
+      if (q.c && /^[A-Za-z0-9]{2,20}$/.test(q.c)) target = '/?c=' + q.c.toUpperCase() + '#boutique-' + q.b;
       const [s] = await get('shops?select=id,nom,description,quartier,ville,logo,verification&statut=eq.actif&slug=eq.' + q.b + '&limit=1');
       if (s) {
         const prods = await get('products?select=photo&visible=eq.true&photo=not.is.null&shop_id=eq.' + s.id + '&order=created_at.desc&limit=1');
