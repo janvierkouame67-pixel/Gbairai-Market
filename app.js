@@ -669,6 +669,27 @@ function vvProduits(s){
   return '<div class="row between"><span class="muted small">'+prods.length+' produits · '+prods.filter(p=>!p.visible).length+' masqués</span><button type="button" class="btn btn-v btn-s" data-a="newProd">'+ic('plus',14,'#fff',3)+'Ajouter</button></div>'+
   (prods.length?prods.map(p=>'<div class="line"><div style="width:60px;flex-shrink:0">'+tile(p,60,28)+'</div><div class="grow"><div class="ell" style="font-weight:600">'+esc(p.nom)+'</div><div class="price num" style="font-size:14px">'+F(p.prix)+'</div><div class="small muted">Stock : '+p.stock+(p.visible?'':' · masqué')+'</div></div><div class="stack" style="gap:6px;align-items:flex-end"><button type="button" class="switch'+(p.visible?' on':'')+'" data-a="vis" data-id="'+p.id+'" aria-label="'+(p.visible?'Masquer':'Afficher')+' le produit" aria-pressed="'+p.visible+'"></button><div class="row" style="gap:6px"><button type="button" class="icon-btn" style="width:36px;height:34px" data-a="share" data-id="'+p.id+'" aria-label="Image pour le statut">'+ic('image',16,'#5B21B6')+'</button><button type="button" class="icon-btn" style="width:36px;height:34px" data-a="editProd" data-id="'+p.id+'" aria-label="Modifier">'+ic('edit',16,'#5B21B6')+'</button></div></div></div>').join(''):'<div class="card muted">Aucun produit. Ajoutez votre premier produit.</div>');
 }
+const SR_API=window.SpeechRecognition||window.webkitSpeechRecognition;let voixRec=null;
+function voixHTML(){if(!SR_API||!window.GbVoix)return '';const on=!!voixRec;
+  return '<div class="voix'+(on?' on':'')+'"><button type="button" class="micbtn" data-a="voix" aria-label="'+(on?'J\'ai fini de parler':'Dire mon produit au micro')+'"><span>'+(on?'⏹':'🎤')+'</span></button><div class="voix-t"><b>'+(on?'Je vous écoute… touchez quand c\'est fini':'Dites votre produit')+'</b><span id="voix-txt" class="small">'+(on?'…':'Ex. : « Robe rouge en wax, 8 000 francs, taille M et L, il en reste 3 »')+'</span></div></div>';}
+function voixFill(text){const f=document.querySelector('form[data-f="produit"]');if(!f||!text)return 0;const r=GbVoix.parse(text);let n=0;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!==''){el.value=v;el.classList.add('voixok');n++;}};
+  if(r.categorie&&CATS().some(c=>c.id===r.categorie)){const rb=f.querySelector('input[name="categorie"][value="'+r.categorie+'"]');if(rb){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));const ft=document.getElementById('f-type');if(ft){ft.innerHTML=typeOpts(r.categorie,r.type||'');ft.value=r.type||'';ft.classList.add('voixok');}n++;rb.closest('.rayon').scrollIntoView({block:'nearest',inline:'center'});}}
+  set('f-nom',r.nom);set('f-prix',r.prix);set('f-stock',r.stock);set('f-tailles',r.tailles);
+  if(r.prix_barre){set('f-barre',r.prix_barre);const d=f.querySelector('.promo-box');if(d)d.open=true;}
+  const de=document.getElementById('f-desc');if(de&&!de.value.trim())set('f-desc',r.description);
+  return n;}
+function voixStart(){if(voixRec)return voixStop();let fin='',tmp='';
+  try{voixRec=new SR_API();}catch(e){voixRec=null;return toast('Le micro n\'est pas disponible sur ce téléphone');}
+  voixRec.lang='fr-FR';voixRec.interimResults=true;voixRec.continuous=true;voixRec.maxAlternatives=1;
+  const show=()=>{const el=document.getElementById('voix-txt');if(el)el.textContent='« '+(fin+' '+tmp).trim()+' »';};
+  voixRec.onresult=e=>{tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=' '+x;else tmp+=x;}show();};
+  voixRec.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed')toast('Autorisez le micro pour cette appli, puis réessayez');else if(e.error==='no-speech')toast('Je n\'ai rien entendu. Parlez plus près du téléphone');else if(e.error==='network')toast('Il faut internet pour la dictée');};
+  voixRec.onend=()=>{const text=(fin+' '+tmp).trim();voixRec=null;keepForm();const bx=document.querySelector('.voix');if(bx){bx.outerHTML=voixHTML();}
+    if(text){const n=voixFill(text);const el=document.getElementById('voix-txt');if(el)el.textContent='« '+text+' »';toast(n?'✨ Fiche remplie : vérifiez puis enregistrez':'Je n\'ai pas compris. Dites le nom et le prix');}};
+  try{voixRec.start();}catch(e){voixRec=null;return toast('Le micro n\'a pas pu démarrer');}
+  const bx=document.querySelector('.voix');if(bx)bx.outerHTML=voixHTML();}
+function voixStop(){if(voixRec)try{voixRec.stop();}catch(e){}}
 function productForm(s){
   const p=ui.edit==='new'?{nom:'',description:'',prix:'',categorie:s.categorie==='divers'?(lsGet('gbairai-dernier-rayon','')||(shopRayons(s)[0]||'')):s.categorie,tailles:'',stock:1,visible:true,photo:null,couleur:ui.newColor}:prodById(ui.edit);
   if(!p){ui.edit=null;return vvProduits(s);}
@@ -679,7 +700,7 @@ function productForm(s){
   const pick='<div class="stack" style="gap:6px"><span class="small" style="font-weight:700">1. Choisissez le type d\'article</span><div class="rpick">'+cs.map((c,i)=>'<label class="rayon'+(c.id===cur?' on':'')+'"><input type="radio" name="categorie" value="'+esc(c.id)+'"'+(c.id===cur?' checked':'')+'>'+rImg(c,i)+'<b>'+esc(c.nom)+'</b></label>').join('')+'</div></div>'+
     '<label class="lbl">2. Précisez<select class="in" id="f-type" name="type">'+typeOpts(cur,curT)+'</select></label>';
   const del=ui.edit!=='new'?(ui.confirm==='del-'+p.id?'<div class="warn row between wrapx">Supprimer ce produit ? <span class="row"><button type="button" class="btn btn-w btn-s" data-a="cancelConfirm">Non</button><button type="button" class="btn btn-o btn-s" data-a="delProd" data-id="'+p.id+'">Oui, supprimer</button></span></div>':'<button type="button" class="btn btn-w btn-s" data-a="confirm" data-id="del-'+p.id+'">'+ic('trash',16)+'Supprimer ce produit</button>'):'';
-  return '<form class="card stack" data-f="produit"><div class="row between"><h2 style="font-size:17px">'+(ui.edit==='new'?'Ajouter un produit':'Modifier le produit')+'</h2><button type="button" class="btn btn-w btn-s" data-a="cancelEdit">Annuler</button></div>'+
+  return '<form class="card stack" data-f="produit"><div class="row between"><h2 style="font-size:17px">'+(ui.edit==='new'?'Ajouter un produit':'Modifier le produit')+'</h2><button type="button" class="btn btn-w btn-s" data-a="cancelEdit">Annuler</button></div>'+(ui.edit==='new'?voixHTML():'')+
   '<div class="row" style="gap:10px"><label class="btn btn-w" style="height:92px;width:110px;flex-direction:column;border:2px dashed #A78BFA;background:#F5F0FF;color:#5B21B6;box-shadow:none;font-size:12px">'+ic('camera',26,'#5B21B6',2)+'Photo<input type="file" accept="image/*" data-file="photo" hidden></label><div style="flex:1;max-width:120px">'+tile({photo:photoPreview,categorie:p.categorie,couleur:p.couleur},92,40)+'</div>'+(photoPreview?'<button type="button" class="btn btn-w btn-s" data-a="rmPhoto">Retirer</button>':'')+'</div>'+
   '<div class="stack" style="gap:6px"><span class="small" style="font-weight:700">Autres photos ('+ui.extras.length+'/4)</span><div class="row wrapx" style="gap:8px">'+ui.extras.map((x,i)=>'<span class="thumb"><img src="'+esc(x.url)+'" alt="Photo '+(i+2)+'"><button type="button" data-a="rmExtra" data-i="'+i+'" aria-label="Retirer cette photo">×</button></span>').join('')+(ui.extras.length<4?'<label class="thumb add" aria-label="Ajouter des photos">'+ic('plus',22,'#5B21B6',2.6)+'<input type="file" accept="image/*" multiple data-file="extra" hidden></label>':'')+'</div></div>'+
   pick+'<label class="lbl">Nom du produit<input class="in" id="f-nom" name="nom" required maxlength="80" value="'+esc(p.nom)+'" placeholder="Ex. : Robe wax longue"></label>'+
@@ -1481,6 +1502,7 @@ const A={
     }catch(e){ui.vdBusy=false;render(true);toast('Erreur : '+e.message);}},
   vdVoir:async t=>{const id=t.dataset.id;try{const r=await fetch('/api/piece',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({action:'voir',shop_id:id})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Erreur');ui.vdPics=ui.vdPics||{};ui.vdPics[id]=j;render(true);if(!j.recto&&!j.selfie)toast('Aucune photo trouvée');}catch(e){toast('Erreur : '+e.message);}},
   shopRay:t=>{ui.shopRay=t.dataset.id?{s:t.dataset.s,c:t.dataset.id}:null;render(true);},
+  voix:()=>voixStart(),
   ctTab:t=>{ui.ctTab=t.dataset.id;render();},
   ctOpen:t=>{ui.ctSel=t.dataset.id;render();window.scrollTo(0,0);},
   ctBack:()=>{ui.ctSel=null;render();},

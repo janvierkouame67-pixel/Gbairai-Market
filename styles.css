@@ -610,3 +610,13 @@ a.badge{text-decoration:none}
 .vshot{flex:1;min-height:120px;border-radius:16px;border:2px dashed #C4B5FD;background:#FAF7FF;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;color:#5B21B6;cursor:pointer;padding:8px;text-align:center;overflow:hidden}.vshot.ok{border:2px solid #0E7A5F;background:#F0FDF8;color:#065F46}.vshot img{max-width:100%;max-height:90px;border-radius:8px;object-fit:cover}.vshot .cam{font-size:28px}
 :root[data-theme="dark"] .vdocs button{background:#241A3D;border-color:#3B2F5C;box-shadow:none}:root[data-theme="dark"] .vdocs button.on{background:#3B2A66;color:#E9DDFF}:root[data-theme="dark"] .vshot{background:#1F1634;border-color:#5B4A8A;color:#C4B5FD}:root[data-theme="dark"] .vshot.ok{background:#0B3B2A;color:#D1FAE5}
 .vpic{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:700;color:inherit;text-decoration:none}.vpic img{width:100%;height:120px;object-fit:cover;border-radius:12px;border:1.5px solid #E4DCF7}.vpic.none{justify-content:center;height:120px;border:1.5px dashed #E4DCF7;border-radius:12px;color:#8A829C}
+
+/* Vendeur vocal */
+.voix{display:flex;align-items:center;gap:14px;padding:12px;border-radius:18px;background:linear-gradient(135deg,#F5F0FF,#FFF7ED);border:1.5px solid #E4DCF7}
+.micbtn{width:64px;height:64px;border-radius:50%;border:0;flex-shrink:0;cursor:pointer;background:radial-gradient(circle at 35% 30%,#A78BFA,#6D28D9 55%,#3B0F87);box-shadow:0 5px 0 #2E0B6B,0 14px 24px -10px #6D28D9;display:grid;place-items:center;font-size:28px}
+.voix.on .micbtn{background:radial-gradient(circle at 35% 30%,#FDBA74,#FF7A1A 55%,#C2410C);box-shadow:0 5px 0 #9A3412;animation:micpulse 1.2s infinite}
+@keyframes micpulse{0%{box-shadow:0 5px 0 #9A3412,0 0 0 0 #FF7A1A66}100%{box-shadow:0 5px 0 #9A3412,0 0 0 18px #FF7A1A00}}
+.voix-t{display:flex;flex-direction:column;gap:3px;min-width:0}.voix-t b{font-size:15px}.voix-t span{color:#6B5B8C;line-height:1.35}.voix.on .voix-t span{color:#1B1033;font-weight:600;font-size:14px}
+.voixok{border-color:#A78BFA!important;background:#FAF7FF!important;box-shadow:0 0 0 3px #EDE7FB}
+:root[data-theme="dark"] .voix{background:linear-gradient(135deg,#241A3D,#2E2117);border-color:#3B2F5C}:root[data-theme="dark"] .voix-t span{color:#C4B5FD}:root[data-theme="dark"] .voix.on .voix-t span{color:#fff}:root[data-theme="dark"] .voixok{background:#2A1F47!important}
+@media (prefers-reduced-motion:reduce){.voix.on .micbtn{animation:none}}
