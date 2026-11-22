@@ -1048,12 +1048,13 @@ function verifHTML(s){const pv=S.priv[s.id]||{},vd=ui.vd=ui.vd||{type:'cni',num:
   '<b class="small">1. Quelle pièce avez-vous ?</b><div class="vdocs">'+PIECES.map(x=>'<button type="button" class="'+(vd.type===x[0]?'on':'')+'" data-a="vdType" data-id="'+x[0]+'"><i>'+x[1]+'</i>'+x[2]+'</button>').join('')+'</div>'+
   '<label class="lbl">2. Numéro de la pièce<input class="in" data-i2="vdNum" maxlength="40" value="'+esc(vd.num)+'" placeholder="'+(vd.type==='scolaire'?'Matricule et nom de l\'école':'Ex. : C 0123 4567 89')+'"></label>'+
   '<b class="small">3. Photos</b><div class="row" style="gap:10px">'+shot('recto','Recto de la pièce')+shot('selfie','Selfie avec la pièce')+'</div>'+
-  '<div class="note small">🔒 Vos photos ne sont <b>pas</b> enregistrées sur le site. Elles partent seulement chez l\'équipe '+esc(S.settings.nom||'Gbairai Market')+', sur WhatsApp.</div>'+
-  '<button type="button" class="btn btn-g btn-block" data-a="vdSend">'+ic('wa',18,'#fff')+'Envoyer à l\'équipe sur WhatsApp</button></section>';}
+  '<div class="note small">🔒 Vos photos sont gardées dans un coffre privé. Seule l\'équipe '+esc(S.settings.nom||'Gbairai Market')+' peut les voir, jamais les clients.</div>'+
+  '<button type="button" class="btn btn-v btn-block" data-a="vdSend"'+(ui.vdBusy?' disabled':'')+'>'+(ui.vdBusy?'⏳ Envoi en cours…':'🔒 Envoyer pour vérification')+'</button></section>';}
 function aVerifs(){const L=S.shops.filter(s=>s.verification!=='verifie'&&s.statut!=='suspendu').sort((a,b)=>(!!(S.priv[b.id]||{}).cni)-(!!(S.priv[a.id]||{}).cni)||String(b.created_at).localeCompare(String(a.created_at)));
-  return '<section class="card stack"><h2 style="font-size:17px">Vérifications ('+L.filter(s=>(S.priv[s.id]||{}).cni).length+' à traiter)</h2><div class="note small">Comparez avec les photos reçues sur WhatsApp, puis validez. Au refus, écrivez le motif : le vendeur le voit.</div></section>'+
+  return '<section class="card stack"><h2 style="font-size:17px">Vérifications ('+L.filter(s=>(S.priv[s.id]||{}).cni).length+' à traiter)</h2><div class="note small">Touchez « Voir les photos », comparez avec le nom de la boutique, puis validez. Au refus, écrivez le motif : le vendeur le voit.</div></section>'+
   (L.length?L.map(s=>{const pv=S.priv[s.id]||{},r=ui.vdRef===s.id;return '<section class="card stack" style="gap:10px"><div class="row" style="gap:12px">'+ctAv(s.logo,s.nom,s.id,enLigne(s))+'<div style="flex:1;min-width:0"><b>'+esc(s.nom)+'</b><div class="small muted">'+(pv.cni?esc(pv.cni):'Pas encore de pièce envoyée')+'</div></div>'+(s.verification==='refuse'?'<span class="badge b-red">Refusée</span>':'<span class="badge b-orange">En attente</span>')+'</div>'+
     (r?'<form class="row" style="gap:8px" data-f="vdRefus" data-id="'+s.id+'"><input class="in" name="motif" required maxlength="200" placeholder="Motif : photo floue, nom différent…" style="flex:1"><button class="btn btn-o btn-s" type="submit">Refuser</button><button type="button" class="btn btn-w btn-s" data-a="vdRefOff">✕</button></form>':
+    (pv.cni?(ui.vdPics&&ui.vdPics[s.id]?'<div class="row" style="gap:8px">'+['recto','selfie'].map(k=>ui.vdPics[s.id][k]?'<a href="'+esc(ui.vdPics[s.id][k])+'" target="_blank" rel="noopener" class="vpic"><img src="'+esc(ui.vdPics[s.id][k])+'" alt="'+k+'"><span>'+(k==='recto'?'Recto':'Selfie')+'</span></a>':'<span class="vpic none">'+(k==='recto'?'Recto':'Selfie')+' absent</span>').join('')+'</div>':'<button type="button" class="btn btn-w btn-s" data-a="vdVoir" data-id="'+s.id+'">👁 Voir les photos</button>'):'')+
     '<div class="row" style="gap:8px"><button type="button" class="btn btn-g btn-s" style="flex:1" data-a="aVerif" data-id="'+s.id+'">✅ Valider</button><button type="button" class="btn btn-w btn-s" style="flex:1" data-a="vdRefOn" data-id="'+s.id+'">✖ Refuser</button><a class="btn btn-w btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'" aria-label="Écrire au vendeur">💬</a></div>')+'</section>';}).join(''):'<div class="card muted" style="text-align:center">Tous les vendeurs sont vérifiés 🎉</div>');}
 function vvReglages(s){
   const pv=S.priv[s.id]||{};
@@ -1464,16 +1465,16 @@ const A={
   vdType:t=>{ui.vd.type=t.dataset.id;render(true);},
   vdRefOn:t=>{ui.vdRef=t.dataset.id;render(true);},
   vdRefOff:()=>{ui.vdRef=null;render(true);},
-  vdSend:async()=>{const s=myShop(),vd=ui.vd||{};if(!s)return;const P=PIECES.find(x=>x[0]===vd.type)||PIECES[0],num=String(vd.num||'').trim();
+  vdSend:async()=>{const s=myShop(),vd=ui.vd||{};if(!s||ui.vdBusy)return;const P=PIECES.find(x=>x[0]===vd.type)||PIECES[0],num=String(vd.num||'').trim();
     if(num.length<3)return toast('Écrivez le numéro de la pièce');if(!vd.recto||!vd.selfie)return toast('Ajoutez les 2 photos');
-    const sup=waNum(S.settings.support_whatsapp||'');const d=new Date(),txt=P[2]+' n° '+num+' · envoyée le '+dfr(d)+' à '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-    try{await q(sb.from('shop_private').upsert({shop_id:s.id,cni:txt.slice(0,120)}));S.priv[s.id]=Object.assign({},S.priv[s.id],{cni:txt.slice(0,120)});}catch(e){return toast('Erreur : '+e.message);}
-    const msg='Bonjour '+(S.settings.nom||'Gbairai Market')+' 👋 Vérification de ma boutique « '+s.nom+' » ('+shopUrl(s)+').\nPièce : '+P[2]+' n° '+num+'.\nVoici le recto de ma pièce et mon selfie avec la pièce.';
-    const files=[new File([vd.recto.blob],'piece-recto.jpg',{type:'image/jpeg'}),new File([vd.selfie.blob],'selfie-piece.jpg',{type:'image/jpeg'})];
-    let shared=false;try{if(navigator.canShare&&navigator.canShare({files})){await navigator.share({files,text:msg});shared=true;}}catch(e){if(e&&e.name==='AbortError'){render();return toast('Envoi annulé : touchez encore « Envoyer »');}}
-    if(!shared){window.open('https://wa.me/'+sup+'?text='+encodeURIComponent(msg+'\n(Je joins les 2 photos.)'),'_blank');toast('Dans WhatsApp, joignez vos 2 photos 📎');}
-    else toast('Choisissez le numéro du support dans WhatsApp');
-    ui.vd={type:vd.type,num:''};render();},
+    const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob);});
+    ui.vdBusy=true;render(true);
+    try{for(const k of ['recto','selfie']){const r=await fetch('/api/piece',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({action:'envoyer',kind:k,data:await b64(vd[k].blob)})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Envoi impossible');}
+      const d=new Date(),txt=(P[2]+' n° '+num+' · envoyée le '+dfr(d)+' à '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')).slice(0,120);
+      await q(sb.from('shop_private').upsert({shop_id:s.id,cni:txt}));S.priv[s.id]=Object.assign({},S.priv[s.id],{cni:txt});
+      ui.vd={type:vd.type,num:''};ui.vdBusy=false;render();toast('Photos envoyées ✅ Réponse sous 24 h');
+    }catch(e){ui.vdBusy=false;render(true);toast('Erreur : '+e.message);}},
+  vdVoir:async t=>{const id=t.dataset.id;try{const r=await fetch('/api/piece',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({action:'voir',shop_id:id})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Erreur');ui.vdPics=ui.vdPics||{};ui.vdPics[id]=j;render(true);if(!j.recto&&!j.selfie)toast('Aucune photo trouvée');}catch(e){toast('Erreur : '+e.message);}},
   ctTab:t=>{ui.ctTab=t.dataset.id;render();},
   ctOpen:t=>{ui.ctSel=t.dataset.id;render();window.scrollTo(0,0);},
   ctBack:()=>{ui.ctSel=null;render();},
@@ -1616,7 +1617,7 @@ const FORMS={
     ui.edit=null;ui.photo=undefined;ui.extras=undefined;
   },'Produit enregistré'),
   tx:d=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('txs').insert({shop_id:myShop().id,type:d.type,montant:m,libelle:d.libelle.trim(),date:d.date||today()}));},'Mouvement enregistré'),
-  vdRefus:(d,f)=>act(async()=>{await q(sb.from('shops').update({verification:'refuse',motif_refus:String(d.motif||'').trim().slice(0,200)}).eq('id',f.dataset.id));await q(sb.from('shop_private').upsert({shop_id:f.dataset.id,cni:''}));ui.vdRef=null;},'Vérification refusée'),
+  vdRefus:(d,f)=>act(async()=>{await q(sb.from('shops').update({verification:'refuse',motif_refus:String(d.motif||'').trim().slice(0,200)}).eq('id',f.dataset.id));await q(sb.from('shop_private').upsert({shop_id:f.dataset.id,cni:''}));fetch('/api/piece',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({action:'effacer',shop_id:f.dataset.id})}).catch(()=>{});ui.vdRef=null;},'Vérification refusée'),
   shop:(d,f)=>act(async()=>{
     const id=f.dataset.id,admin=f.dataset.admin==='1';
     const keys=['nom','gerant','categorie','description','whatsapp','telegram','telephone','email','facebook','tiktok','ville','quartier','adresse','livraison_zones','livraison_frais'];
