@@ -561,3 +561,21 @@ a.badge{text-decoration:none}
 .segr span{display:block;text-align:center;border-radius:10px;padding:9px 6px;font-size:12.5px;font-weight:700;color:var(--muted)}
 .segr input:checked+span{background:var(--card);color:var(--ink);box-shadow:0 2px 6px -2px rgba(27,16,51,.3)}
 .segr input:focus-visible+span{outline:3px solid var(--violet2)}
+
+/* Règlement intérieur */
+.regintro{background:linear-gradient(135deg,#EDE9FE,#FFF7ED)}
+.regart{padding:0;overflow:hidden}
+.regart summary{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;list-style:none;font-size:15px}
+.regart summary::-webkit-details-marker{display:none}
+.regart summary::after{content:'›';margin-left:auto;font-size:22px;color:#6B5B8C;transition:transform .2s}
+.regart[open] summary::after{transform:rotate(90deg)}
+.regic{width:34px;height:34px;border-radius:10px;background:#F5F3FF;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.regbody{padding:0 16px 14px;font-size:14px;line-height:1.55}
+.regbody p{margin:8px 0}.regbody ol,.regbody ul{margin:8px 0;padding-left:20px}.regbody li{margin:5px 0}
+.regt{overflow-x:auto;margin:8px 0}.regt table{min-width:0;width:100%;border-collapse:collapse;font-size:13px}
+.regt th,.regt td{border:1px solid #E4DDF5;padding:7px 8px;text-align:left;vertical-align:top}.regt th{background:#F5F3FF}
+.regok{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4}.regok input{margin-top:2px;width:18px;height:18px;flex-shrink:0}
+:root[data-theme="dark"] .regintro{background:linear-gradient(135deg,#2A1F47,#3A2A1F)}
+:root[data-theme="dark"] .regic,:root[data-theme="dark"] .regt th{background:#2A1F47}
+:root[data-theme="dark"] .regt th,:root[data-theme="dark"] .regt td{border-color:#3B2F5C}
+@media print{.regart{break-inside:avoid}}

@@ -79,7 +79,7 @@
       h='<div class="bl-teaser">Besoin d\'aide ? 👋<small>Posez votre question, on vous répond.</small></div>';
     }
     el.innerHTML=h+btn;
-    el.hidden=/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide)/.test(c.h)||!!document.getElementById('intro');
+    el.hidden=/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide|reglement)/.test(c.h)||!!document.getElementById('intro');
     var b=el.querySelector('.bl-body');if(b)b.scrollTop=b.scrollHeight;
   }
   el.addEventListener('click',function(e){
@@ -89,7 +89,7 @@
   });
   window.addEventListener('hashchange',function(){open=false;render();});
   setTimeout(function(){if(!teaserShown){teaserShown=true;if(!open)render();}},9000);
-  var obs=new MutationObserver(function(){if(el.hidden!==(/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide)/.test(ctx().h)||!!document.getElementById('intro')))render();});
+  var obs=new MutationObserver(function(){if(el.hidden!==(/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide|reglement)/.test(ctx().h)||!!document.getElementById('intro')))render();});
   obs.observe(document.body,{childList:true});
   setTimeout(render,300);
 })();
