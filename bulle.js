@@ -40,7 +40,7 @@
   '#bulle .bl-q:hover{background:#EDE7FB}'+
   '#bulle .bl-foot{padding:12px 14px 14px;border-top:1px solid #EAE4F7;background:#fff;display:flex;flex-direction:column;gap:8px}'+
   '#bulle .bl-wa{display:flex;align-items:center;justify-content:center;gap:8px;background:#0E7A5F;color:#fff;text-decoration:none;font-weight:700;font-size:14.5px;border-radius:14px;padding:12px;box-shadow:0 4px 0 #064E3B}'+
-  '#bulle .bl-wa svg{width:20px;height:20px}#bulle .bl-alt{text-align:center;font-size:12.5px;color:#6B6280}#bulle .bl-alt a{color:#5B21B6;font-weight:600}'+
+  '#bulle .bl-gb{background:#6D28D9;box-shadow:0 4px 0 #3B0F87;margin-bottom:8px}#bulle .bl-wa svg{width:20px;height:20px}#bulle .bl-alt{text-align:center;font-size:12.5px;color:#6B6280}#bulle .bl-alt a{color:#5B21B6;font-weight:600}'+
   '@media (prefers-reduced-motion:reduce){#bulle *{animation:none!important}}';
   document.head.appendChild(css);
   var el=document.createElement('div');el.id='bulle';document.body.appendChild(el);
@@ -66,7 +66,7 @@
       if(seller){
         body+='<div class="bl-msg">Bonjour 👋 Vous avez une question '+(c.prod?'sur <b>'+esc(c.prod.nom)+'</b>':'sur nos articles')+' ? Taille, couleur, livraison… Écrivez-nous directement !</div>';
         var txt='Bonjour '+c.shop.nom+', '+(c.prod?'j\'ai une question sur « '+c.prod.nom+' » : ':'j\'ai une question : ')+'\n(Vu sur '+c.nom+')';
-        var foot='<a class="bl-wa" target="_blank" rel="noopener" href="https://wa.me/'+num(c.shop.whatsapp)+'?text='+encodeURIComponent(txt)+'">'+wa+'Écrire au vendeur sur WhatsApp</a>'+
+        var foot='<a class="bl-wa bl-gb" href="#chat-'+c.shop.id+(c.prod?'~'+c.prod.id:'')+'">💬 Discuter ici, dans '+esc(c.nom)+'</a><a class="bl-wa" target="_blank" rel="noopener" href="https://wa.me/'+num(c.shop.whatsapp)+'?text='+encodeURIComponent(txt)+'">'+wa+'Écrire au vendeur sur WhatsApp</a>'+
           (c.support?'<div class="bl-alt">Un souci avec ce vendeur ? <a target="_blank" rel="noopener" href="https://wa.me/'+c.support+'">Contacter '+esc(c.nom)+'</a></div>':'');
       }else{
         body+='<div class="bl-msg">Bonjour 👋 Bienvenue sur <b>'+esc(c.nom)+'</b> ! Comment pouvons-nous vous aider ?</div>';
@@ -79,7 +79,7 @@
       h='<div class="bl-teaser">Besoin d\'aide ? 👋<small>Posez votre question, on vous répond.</small></div>';
     }
     el.innerHTML=h+btn;
-    el.hidden=/^(admin|vendeur|compte)/.test(c.h)||!!document.getElementById('intro');
+    el.hidden=/^(admin|vendeur|compte|chat-|discussion)/.test(c.h)||!!document.getElementById('intro');
     var b=el.querySelector('.bl-body');if(b)b.scrollTop=b.scrollHeight;
   }
   el.addEventListener('click',function(e){
@@ -89,7 +89,7 @@
   });
   window.addEventListener('hashchange',function(){open=false;render();});
   setTimeout(function(){if(!teaserShown){teaserShown=true;if(!open)render();}},9000);
-  var obs=new MutationObserver(function(){if(el.hidden!==(/^(admin|vendeur|compte)/.test(ctx().h)||!!document.getElementById('intro')))render();});
+  var obs=new MutationObserver(function(){if(el.hidden!==(/^(admin|vendeur|compte|chat-|discussion)/.test(ctx().h)||!!document.getElementById('intro')))render();});
   obs.observe(document.body,{childList:true});
   setTimeout(render,300);
 })();

@@ -375,3 +375,23 @@ a.badge{text-decoration:none}
 .pres.off::before{background:#E5E7EB}
 @keyframes presPulse{50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}}
 @media (prefers-reduced-motion:reduce){.pres.on::before{animation:none}}
+
+/* ---------- Discussions ---------- */
+.chatwrap{display:flex;flex-direction:column;gap:12px}
+.chathead{gap:10px;align-items:center}
+.chat-note{font-size:12px;color:#5B21B6;background:#F3EEFF;border-radius:12px;padding:8px 12px;text-align:center}
+.chatbox{display:flex;flex-direction:column;gap:8px;max-height:55vh;min-height:180px;overflow-y:auto;padding:12px;border-radius:20px;background:linear-gradient(180deg,#F7F3FF,#FFF8F1);box-shadow:inset 0 0 0 1px #EEE7FB}
+.bub{max-width:82%;padding:9px 12px 6px;border-radius:18px;box-shadow:0 2px 0 rgba(76,29,149,.08)}
+.bub p{margin:0;font-size:14.5px;line-height:1.4;overflow-wrap:anywhere}
+.bub small{display:block;font-size:10.5px;opacity:.7;margin-top:3px;text-align:right}
+.bub.them{align-self:flex-start;background:#fff;border-bottom-left-radius:6px}
+.bub.me{align-self:flex-end;background:linear-gradient(145deg,#7C3AED,#5B21B6);color:#fff;border-bottom-right-radius:6px}
+.chatform{display:flex;flex-direction:column;gap:8px}
+.convrow{display:flex;align-items:center;gap:12px;padding:10px;border:0;background:none;width:100%;text-align:left;border-radius:14px;text-decoration:none;color:var(--ink);cursor:pointer;font:inherit}
+.convrow:hover{background:#F7F3FF}
+.convrow+.convrow{border-top:1px solid #F1ECFA}
+.convtxt{display:flex;flex-direction:column;min-width:0;flex:1}
+.convtxt .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.convmeta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.cnt-pill.on{background:#FF7A1A;color:#fff}
+.chatform.row{flex-direction:row}

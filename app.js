@@ -82,8 +82,10 @@ let myOrders=lsGet('gbairai-mes-commandes',[]);if(!Array.isArray(myOrders))myOrd
 let follows=lsGet('gbairai-suivis',[]);if(!Array.isArray(follows))follows=[];
 let seen=lsGet('gbairai-vus',{})||{};
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});
+let ck=lsGet('gbairai-ck',null);if(!/^[0-9a-f-]{36}$/i.test(String(ck||''))){ck=uuid();lsSet('gbairai-ck',ck);}
+let convMap=lsGet('gbairai-convs',{})||{};
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={nbAb:{},gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -206,13 +208,14 @@ async function loadAll(){
         const [o,p]=await Promise.all([q(sb.from('orders').select('*').order('created_at',{ascending:false})),q(sb.from('shop_private').select('*'))]);
         S.orders=o;p.forEach(x=>S.priv[x.shop_id]=x);
         const [pay,rep_,bl]=await Promise.all([safe(sb.from('payments').select('*').order('created_at',{ascending:false})),safe(sb.from('reports').select('*').order('created_at',{ascending:false})),safe(sb.from('blacklist').select('*').order('created_at',{ascending:false}))]);
-        S.payments=pay;S.reports=rep_;S.blacklist=bl;S.clientReports=await safe(sb.from('client_reports').select('*').order('created_at',{ascending:false}));
+        S.payments=pay;S.reports=rep_;S.blacklist=bl;S.clientReports=await safe(sb.from('client_reports').select('*').order('created_at',{ascending:false}));S.litiges=await safe(sb.from('conversations').select('*').eq('signale',true).order('last_at',{ascending:false}));
         if(mine)S.txs=await q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false}));
       }else if(mine){
         const [o,t,p]=await Promise.all([q(sb.from('orders').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false})),q(sb.from('txs').select('*').eq('shop_id',mine.id).order('date',{ascending:false})),q(sb.from('shop_private').select('*').eq('shop_id',mine.id))]);
         S.orders=o;S.txs=t;p.forEach(x=>S.priv[x.shop_id]=x);
         S.payments=await safe(sb.from('payments').select('*').eq('shop_id',mine.id).order('created_at',{ascending:false}));
         S.nbAb=await sb.rpc('nb_abonnes',{sid:mine.id}).then(r=>typeof r.data==='number'?r.data:0,()=>0);
+        try{await loadConvs(mine.id);}catch(e){}
       }
     }
     S.error=null;
@@ -305,7 +308,7 @@ async function pushEnable(){
     lsSet('gbairai-push',1);await pushSync(sub);toast('Alertes activées 🔔');return true;
   }catch(e){toast('Impossible d\'activer les alertes sur ce téléphone');return false;}}
 async function pushSync(sub){try{if(!pushOn())return;const reg=await navigator.serviceWorker.ready;sub=sub||await reg.pushManager.getSubscription();if(!sub)return;const j=sub.toJSON();
-  await sb.rpc('push_save',{ep:j.endpoint,k:j.keys.p256dh,a:j.keys.auth,sh:follows.filter(isUuid).slice(0,200),ord:myOrders.map(o=>o.id).filter(isUuid).slice(0,50)});}catch(e){}}
+  await sb.rpc('push_save',{ep:j.endpoint,k:j.keys.p256dh,a:j.keys.auth,sh:follows.filter(isUuid).slice(0,200),ord:myOrders.map(o=>o.id).filter(isUuid).slice(0,50),cv:Object.values(convMap).filter(isUuid).slice(0,50)});}catch(e){}}
 async function pushDisable(){try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription();if(sub){await sb.rpc('push_remove',{ep:sub.endpoint});await sub.unsubscribe();}}catch(e){}lsSet('gbairai-push',0);toast('Alertes désactivées');}
 function notify(o){if(!S.token)return;try{fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
 function setFollow(id,on){follows=on?[id].concat(follows.filter(x=>x!==id)):follows.filter(x=>x!==id);lsSet('gbairai-suivis',follows);if(on){seen[id]=new Date().toISOString();lsSet('gbairai-vus',seen);}pushSync();}
@@ -327,10 +330,11 @@ function askAlerts(s){document.getElementById('layer').innerHTML='<div class="mo
 let saveT=null;
 function clientSaveSoon(){if(!S.user||!S.synced)return;clearTimeout(saveT);saveT=setTimeout(clientSave,800);}
 function clientSave(){if(!S.user)return;const m=S.user.user_metadata||{};
-  return sb.from('client_data').upsert({user_id:S.user.id,nom:String(S.cnom||m.nom||'').slice(0,80),favs:favs.slice(0,300),follows:follows.slice(0,200),orders:myOrders.slice(0,50),updated_at:new Date().toISOString()}).then(()=>{},()=>{});}
+  return sb.from('client_data').upsert(Object.assign({user_id:S.user.id,nom:String(S.cnom||m.nom||'').slice(0,80),favs:favs.slice(0,300),follows:follows.slice(0,200),orders:myOrders.slice(0,50),updated_at:new Date().toISOString()},S.hasCk?{ck}:{})).then(()=>{},()=>{});}
 async function clientSync(){
   try{const r=await sb.from('client_data').select('*').eq('user_id',S.user.id).maybeSingle();if(r.error)return;const d=r.data||{};
     S.cnom=d.nom||(S.user.user_metadata||{}).nom||'';
+    if('ck' in d||r.data===null)S.hasCk='ck' in d;if(d.ck&&d.ck!==ck&&!Object.keys(convMap).length){ck=d.ck;lsSet('gbairai-ck',ck);}
     favs=uniqA(favs.concat(d.favs||[]));follows=uniqA(follows.concat(d.follows||[]));
     const by={};(d.orders||[]).concat(myOrders).forEach(o=>{if(o&&o.id)by[o.id]=Object.assign({},by[o.id],o);});
     myOrders=Object.values(by).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,50);
@@ -343,11 +347,12 @@ function vCompte(){
     '<div class="seg2">'+[['creer','Créer mon compte'],['login','Me connecter']].map(x=>'<button type="button" class="chip'+(t===x[0]?' on':'')+'" data-a="cTab" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
     (t==='creer'?'<form class="card stack" data-f="csignup"><label class="lbl">Votre nom<input class="in" name="nom" required maxlength="80" autocomplete="name" value="'+esc(client.nom||'')+'" placeholder="Ex. : Fatou K."></label><label class="lbl">Numéro de téléphone<input class="in" name="phone" type="tel" required autocomplete="tel" value="'+esc(client.tel||'')+'" placeholder="07 XX XX XX XX"></label><label class="lbl">Mot de passe (6 caractères minimum)<input class="in" name="password" type="password" required minlength="6" autocomplete="new-password"></label><button class="btn btn-v btn-block" type="submit">Créer mon compte</button><p class="small muted" style="margin:0">Pas de SMS, pas d\'e-mail : seulement votre numéro et un mot de passe.</p></form>'
     :'<form class="card stack" data-f="clogin"><label class="lbl">Numéro de téléphone<input class="in" name="phone" type="tel" required autocomplete="tel" placeholder="07 XX XX XX XX"></label><label class="lbl">Mot de passe<input class="in" name="password" type="password" required autocomplete="current-password"></label><button class="btn btn-v btn-block" type="submit">Me connecter</button>'+(S.settings.support_whatsapp?'<a class="small" target="_blank" rel="noopener" href="https://wa.me/'+waNum(S.settings.support_whatsapp)+'?text='+encodeURIComponent('Bonjour, j\'ai oublié le mot de passe de mon compte Gbairai.')+'">Mot de passe oublié ?</a>':'')+'</form>')+
-    alertCard('Recevoir les alertes sans compte')+installCard('Ouvrez vos boutiques en un geste.')+'</div>';}
+    (Object.keys(convMap).length?'<a class="card row between" href="#discussions" style="text-decoration:none;color:var(--ink)"><span>💬 <b>Mes discussions</b></span><span class="small" style="color:#6D28D9;font-weight:700">Ouvrir ›</span></a>':'')+alertCard('Recevoir les alertes sans compte')+installCard('Ouvrez vos boutiques en un geste.')+'</div>';}
   const m=S.user.user_metadata||{},nom=S.cnom||m.nom||'',tel=m.phone||'',sh=myShop();
   const ini=(nom||'?').split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
   const fl=follows.map(shopById).filter(Boolean);
   h+='<section class="card row" style="gap:14px"><span class="av-c">'+esc(ini)+'</span><div style="min-width:0"><b style="font-size:17px">'+esc(nom||'Mon compte')+'</b><div class="small muted">'+esc(tel?'+'+tel:'')+'</div><div class="small" style="color:#0E7A5F;font-weight:700">'+(S.synced?'✔ Synchronisé sur vos téléphones':'Synchronisation…')+'</div></div></section>';
+  h+='<a class="card row between" href="#discussions" style="text-decoration:none;color:var(--ink)"><span>💬 <b>Mes discussions</b></span><span class="small" style="color:#6D28D9;font-weight:700">Ouvrir ›</span></a>';
   h+='<div class="grid2"><a class="card stack kpi-l" href="#commandes"><b style="font-size:22px">'+myOrders.length+'</b><span class="small muted">Mes commandes</span></a><a class="card stack kpi-l" href="#favoris"><b style="font-size:22px">'+favs.length+'</b><span class="small muted">Mes favoris</span></a></div>';
   h+=pushOn()?'<div class="card row between" style="gap:10px"><span>🔔 <b>Alertes activées</b><br><span class="small muted">Nouveautés de vos boutiques et étapes de vos commandes</span></span><button type="button" class="btn btn-w btn-s" data-a="pushOff">Désactiver</button></div>':alertCard('Activer les alertes');
   h+='<section class="card stack"><h2 style="font-size:16px">Boutiques que je suis ('+fl.length+')</h2>'+(fl.length?fl.map(s=>'<div class="row between"><a class="row" href="#boutique-'+esc(s.slug)+'" style="gap:10px;min-width:0">'+avatar(s,40)+'<b style="min-width:0">'+esc(s.nom)+'</b></a><button type="button" class="btn btn-w btn-s" data-a="follow" data-id="'+s.id+'">Ne plus suivre</button></div>').join(''):'<p class="small muted" style="margin:0">Touchez « 🔔 Suivre la boutique » sur la page d\'une boutique.</p>')+'</section>';
@@ -355,6 +360,62 @@ function vCompte(){
   h+=isAdmin()?'<a class="btn btn-w btn-block" href="#admin">Administration</a>':'<a class="btn btn-w btn-block" href="#vendeur">'+(sh?'Mon espace vendeur':'🏪 Vendre sur Gbairai : créer ma boutique')+'</a>';
   return h+'<button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button></div>';
 }
+
+/* ---------- DISCUSSIONS ---------- */
+function notifyAnon(o){try{fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
+const hm=d=>{const x=new Date(d),t=new Date();return (x.toDateString()===t.toDateString()?'':x.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' ')+x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+function bubbles(msgs,me,empty){if(!msgs)return '<p class="muted small" style="text-align:center">Chargement…</p>';if(!msgs.length)return empty;
+  return msgs.map(m=>'<div class="bub '+(m.de===me?'me':'them')+'"><p>'+esc(m.texte).replace(/\n/g,'<br>')+'</p><small>'+hm(m.created_at)+'</small></div>').join('');}
+function chatSt(sid){return ui.chat[sid]||(ui.chat[sid]={msgs:null,busy:false});}
+function chatLoad(sid,soft){const st=chatSt(sid),cid=convMap[sid];if(st.busy)return;
+  if(!cid){st.msgs=[];if(!soft)render(true);return;}
+  st.busy=true;sb.rpc('conv_messages',{cid,k:ck}).then(r=>{st.busy=false;const m=(r.data||[]).slice().reverse();const ch=!st.msgs||st.msgs.length!==m.length;st.msgs=m;if(ch)softRender();},()=>{st.busy=false;if(!st.msgs){st.msgs=[];render(true);}});}
+function softRender(){const a=document.activeElement,keep={};document.querySelectorAll('[data-keep]').forEach(el=>keep[el.dataset.keep]=el.value);
+  const fid=a&&a.dataset?a.dataset.keep:null;render(true);
+  Object.keys(keep).forEach(k=>{const el=document.querySelector('[data-keep="'+k+'"]');if(el)el.value=keep[k];});
+  if(fid){const el=document.querySelector('[data-keep="'+fid+'"]');if(el)el.focus();}
+  const box=document.getElementById('chatbox');if(box)box.scrollTop=box.scrollHeight;}
+function vChat(arg){const sid=arg.split('~')[0],pid=arg.split('~')[1],s=shopById(sid);
+  if(!s||s.statut!=='actif')return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Boutique introuvable</h1></div></div>';
+  const st=chatSt(sid);if(st.msgs===null&&!st.busy)setTimeout(()=>chatLoad(sid),0);
+  const p=pid&&prodById(pid),pre=p&&!st.msgs?.length?'Bonjour, à propos de « '+p.nom+' » ('+F(prix(p))+') : ':'';
+  const need=!client.nom;
+  return '<div class="wrap narrow chatwrap"><div class="row chathead">'+back('#boutique-'+esc(s.slug))+avatar(s,42)+'<div style="min-width:0"><b>'+esc(s.nom)+'</b><div>'+(presenceHTML(s)||'<span class="small muted">Répond ici dès qu\'il voit votre message</span>')+'</div></div></div>'+
+  '<div class="chat-note">🔒 Discussion gardée par Gbairai. En cas de litige, notre équipe peut la lire pour vous protéger.</div>'+
+  '<div class="chatbox" id="chatbox">'+bubbles(st.msgs,'client','<div class="bub them"><p>Bonjour 👋 Posez votre question à <b>'+esc(s.nom)+'</b> : taille, couleur, prix, livraison… La réponse arrive ici.</p></div>')+'</div>'+
+  '<form class="chatform card" data-f="chatSend" data-id="'+s.id+'">'+(need?'<div class="grid2"><input class="in" name="nom" required maxlength="80" placeholder="Votre nom" aria-label="Votre nom" data-keep="cnom"><input class="in" name="tel" type="tel" maxlength="30" placeholder="Téléphone (facultatif)" aria-label="Votre téléphone" data-keep="ctel"></div>':'')+
+  '<div class="row" style="gap:8px;align-items:flex-end"><textarea class="in" name="texte" rows="2" required maxlength="1000" placeholder="Votre message…" aria-label="Votre message" data-keep="ctxt" style="flex:1;resize:none">'+esc(pre)+'</textarea><button class="btn btn-v" type="submit" aria-label="Envoyer" style="height:52px;width:56px;padding:0">'+ic('tg',22,'#fff')+'</button></div></form>'+
+  (pushOn()?'':alertCard('Être prévenu quand le vendeur répond'))+
+  '<div class="row between wrapx small" style="gap:8px"><a target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">Préférez WhatsApp ? Écrire sur WhatsApp ›</a>'+(convMap[sid]?'<button type="button" class="linkbtn" data-a="convSignal" data-id="'+s.id+'">⚑ Signaler un problème</button>':'')+'</div></div>';}
+function vDiscussions(){
+  if(ui.dl===undefined){ui.dl=null;sb.rpc('conv_liste',{k:ck}).then(r=>{ui.dl=r.data||[];render(true);},()=>{ui.dl=[];render(true);});}
+  const L=ui.dl;let h='<div class="wrap narrow"><div class="row">'+back('#compte')+'<h1 style="font-size:20px">Mes discussions</h1></div>';
+  if(!L)return h+'<p class="muted">Chargement…</p></div>';
+  if(!L.length)return h+'<div class="card stack" style="text-align:center;padding:26px"><b>Aucune discussion</b><span class="small muted">Sur la page d\'une boutique, touchez « 💬 Discuter ici ».</span></div></div>';
+  return h+'<div class="card stack" style="gap:0;padding:6px">'+L.map(c=>{const s=shopById(c.shop_id);if(!s)return '';
+    return '<a class="convrow" href="#chat-'+s.id+'">'+avatar(s,44)+'<span class="convtxt"><b>'+esc(s.nom)+'</b><span class="small muted">'+esc(c.last_msg||'')+'</span></span><span class="convmeta"><small>'+hm(c.last_at)+'</small>'+(c.non_lus?'<span class="cnt-pill on">'+c.non_lus+'</span>':'')+'</span></a>';}).join('')+'</div></div>';}
+function vvMessages(s){
+  const L=S.convs||[],c=ui.conv&&L.find(x=>x.id===ui.conv);
+  const alerts=pushOn()?'<div class="good small">🔔 Vous êtes prévenu des nouveaux messages sur ce téléphone.</div>':alertCard('Être prévenu des nouveaux messages');
+  if(c){const st=ui.vmsgs[c.id];if(st===undefined){ui.vmsgs[c.id]=null;loadVMsgs(c.id);}
+    return '<section class="card stack chatwrap"><div class="row between"><button type="button" class="btn btn-w btn-s" data-a="convBack">‹ Toutes</button><span class="small muted">'+esc(c.client_tel||'')+'</span></div><b style="font-size:17px">'+esc(c.client_nom||'Client')+'</b>'+(c.client_tel?fiabHTML(c.client_tel,s.id):'')+
+    '<div class="chatbox" id="chatbox">'+bubbles(ui.vmsgs[c.id],'vendeur','<p class="muted small">Aucun message.</p>')+'</div>'+
+    '<form class="row chatform" data-f="vReply" data-id="'+c.id+'" style="gap:8px;align-items:flex-end"><textarea class="in" name="texte" rows="2" required maxlength="1000" placeholder="Votre réponse…" aria-label="Votre réponse" data-keep="vtxt" style="flex:1;resize:none"></textarea><button class="btn btn-v" type="submit" aria-label="Envoyer" style="height:52px;width:56px;padding:0">'+ic('tg',22,'#fff')+'</button></form>'+
+    '<div class="row between wrapx small" style="gap:8px">'+(c.client_tel?'<a target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.client_tel)+'">Continuer sur WhatsApp ›</a>':'<span></span>')+(c.signale?'<span class="badge b-orange">Signalée</span>':'<button type="button" class="linkbtn" data-a="convSignalV" data-id="'+c.id+'">⚑ Signaler (litige)</button>')+'</div></section>'+alerts;}
+  return alerts+'<section class="card stack" style="gap:0;padding:6px">'+(L.length?L.map(c=>'<button type="button" class="convrow" data-a="convOpen" data-id="'+c.id+'"><span class="av-c" style="width:44px;height:44px;font-size:16px;box-shadow:none">'+esc((c.client_nom||'?').slice(0,2).toUpperCase())+'</span><span class="convtxt"><b>'+esc(c.client_nom||'Client')+'</b><span class="small muted">'+esc(c.last_msg||'')+'</span></span><span class="convmeta"><small>'+hm(c.last_at)+'</small>'+(c.non_lus_vendeur?'<span class="cnt-pill on">'+c.non_lus_vendeur+'</span>':'')+'</span></button>').join(''):'<div style="text-align:center;padding:24px" class="stack"><b>Pas encore de message</b><span class="small muted">Les clients peuvent maintenant vous écrire depuis votre boutique avec « 💬 Discuter ici ».</span></div>')+'</section>';}
+function loadVMsgs(cid){sb.from('messages').select('*').eq('conv_id',cid).order('id',{ascending:true}).limit(300).then(r=>{const m=r.data||[];const o=ui.vmsgs[cid];ui.vmsgs[cid]=m;if(!o||o.length!==m.length)softRender();},()=>{ui.vmsgs[cid]=[];});
+  const c=(S.convs||[]).find(x=>x.id===cid);if(c&&c.non_lus_vendeur){c.non_lus_vendeur=0;sb.rpc('conv_lu',{cid}).then(()=>{},()=>{});}}
+async function loadConvs(sid){const r=await sb.from('conversations').select('*').eq('shop_id',sid).order('last_at',{ascending:false}).limit(100);if(!r.error)S.convs=r.data||[];}
+function aLitiges(){const L=S.litiges||[],c=ui.lit&&L.find(x=>x.id===ui.lit);
+  if(c){const st=ui.vmsgs[c.id];if(st===undefined){ui.vmsgs[c.id]=null;sb.from('messages').select('*').eq('conv_id',c.id).order('id').limit(500).then(r=>{ui.vmsgs[c.id]=r.data||[];render(true);},()=>{});}
+    const s=shopById(c.shop_id);
+    return '<section class="card stack chatwrap" style="max-width:720px"><div class="row between"><button type="button" class="btn btn-w btn-s" data-a="litBack">‹ Tous les litiges</button><span class="badge b-orange">Litige</span></div><b>'+esc(c.client_nom||'Client')+' '+esc(c.client_tel||'')+' ↔ '+esc(s?s.nom:'?')+'</b>'+(c.motif?'<div class="warn small">Motif : '+esc(c.motif)+'</div>':'')+
+    '<div class="chatbox" style="max-height:none">'+bubbles(ui.vmsgs[c.id],'vendeur','<p class="muted small">Aucun message.</p>').replace(/class="bub me"/g,'class="bub me" title="Vendeur"')+'</div><p class="small muted" style="margin:0">À droite : le vendeur. À gauche : le client.</p>'+
+    '<div class="row wrapx" style="gap:8px">'+(c.client_tel?'<a class="btn btn-w btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.client_tel)+'">WhatsApp du client</a>':'')+(s?'<a class="btn btn-w btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">WhatsApp du vendeur</a>':'')+(c.client_tel?'<button type="button" class="btn btn-r btn-s" data-a="litBlock" data-id="'+c.id+'">Bloquer le numéro du client</button>':'')+'<button type="button" class="btn btn-v btn-s" data-a="litClose" data-id="'+c.id+'">Clore le litige</button></div><p class="small muted" style="margin:0">Une fois close, la discussion redevient privée : vous ne la voyez plus.</p></section>';}
+  return '<section class="card stack" style="max-width:720px"><h2 style="font-size:17px">Discussions signalées</h2><p class="small muted" style="margin:0">Vous ne voyez une discussion que si le client ou le vendeur la signale.</p>'+(L.length?L.map(c=>{const s=shopById(c.shop_id);return '<button type="button" class="convrow" data-a="litOpen" data-id="'+c.id+'"><span class="convtxt"><b>'+esc(c.client_nom||'Client')+' ↔ '+esc(s?s.nom:'?')+'</b><span class="small muted">'+esc(c.motif||c.last_msg||'')+'</span></span><span class="convmeta"><small>'+hm(c.last_at)+'</small></span></button>';}).join(''):'<p class="muted" style="margin:0">Aucun litige pour le moment 👍</p>')+'</section>';}
+setInterval(()=>{if(document.hidden||!S.loaded)return;const h=(location.hash||'').slice(1);
+  if(h.startsWith('chat-'))chatLoad(h.slice(5).split('~')[0],true);
+  else if(h==='vendeur'&&myShop()&&!isAdmin()){const s=myShop();loadConvs(s.id).then(()=>{if(ui.vTab==='messages'&&ui.conv)loadVMsgs(ui.conv);else if(ui.vTab==='messages')softRender();});}},10000);
 
 /* ---------- CLIENT ---------- */
 function vAccueil(){
@@ -411,7 +472,7 @@ function vBoutique(slug){
   '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+presenceHTML(s)+ratingHTML(s.id)+'</div></div>'+
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
-  '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div>'+followHTML(s)+'</div>'+
+  '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div><a class="btn btn-v btn-s btn-block" href="#chat-'+s.id+'">💬 Discuter ici avec la boutique</a>'+followHTML(s)+'</div>'+
   trustHTML(s)+
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
@@ -537,12 +598,13 @@ function vVendeur(){
   if(!S.user)return authForms('Votre boutique en ligne, gratuite','Un lien à partager sur vos statuts WhatsApp, TikTok et Facebook.',true);
   const s=myShop();
   if(!s)return '<div class="wrap">'+logoHTML()+(isAdmin()?'<div class="note">Vous êtes connecté en administrateur. <a href="#admin">Aller à l\'administration</a></div>':'')+'<form class="card stack" data-f="newshop"><h1 style="font-size:19px">Créer ma boutique</h1><label class="lbl">Nom de la boutique<input class="in" id="n-nom" name="nom" required></label><label class="lbl">Numéro WhatsApp<input class="in" id="n-wa" name="phone" type="tel" required value="'+esc((S.user.user_metadata||{}).phone||'')+'"></label>'+locFields('n')+'<label class="lbl">Catégorie<select class="in" id="n-c" name="categorie">'+CATS().map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nom)+'</option>').join('')+'</select></label><button class="btn btn-v btn-block" type="submit">Créer</button></form><button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button></div>';
-  const tabs=[['accueil','Accueil'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['abonnement','Abonnement'],['reglages','Réglages']];
+  const tabs=[['accueil','Accueil'],['messages','Messages'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['abonnement','Abonnement'],['reglages','Réglages']];
   const pending=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='envoyee').length;
-  const f={accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,abonnement:vvAbonnement,reglages:vvReglages}[ui.vTab]||vvAccueil;
+  const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,abonnement:vvAbonnement,reglages:vvReglages}[ui.vTab]||vvAccueil;
   return '<div class="wrap"><div class="row between"><div class="row">'+avatar(s,44)+'<div><h1 style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><a class="btn btn-w btn-s" href="#boutique-'+esc(s.slug)+'">Voir ma page</a></div>'+
-  '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+'</button>').join('')+'</div>'+f(s)+'</div>';
+  '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+f(s)+'</div>';
 }
+const unreadV=()=>(S.convs||[]).reduce((a,c)=>a+(c.non_lus_vendeur||0),0);
 function vvAccueil(s){
   const prods=shopProducts(s.id),lim=s.formule==='pro'?Infinity:S.settings.limite_gratuit;
   const tx=S.txs.filter(t=>t.shop_id===s.id&&monthOf(t.date)===monthOf(today()));
@@ -551,6 +613,7 @@ function vvAccueil(s){
   const myO=S.orders.filter(o=>o.shop_id===s.id),D=ui.per,Op=myO.filter(o=>inPer(o.created_at,D)),cf=Op.filter(o=>o.statut==='confirmee');
   const caP=cf.reduce((a,o)=>a+o.total,0),todayO=myO.filter(o=>dayKey(o.created_at)===dayKey(Date.now()));
   const tk=[];
+  if(unreadV())tk.push('💬 '+unreadV()+' message'+(unreadV()>1?'s':'')+' de clients à lire');
   if(S.nbAb)tk.push('🔔 '+S.nbAb+' client'+(S.nbAb>1?'s':'')+' abonné'+(S.nbAb>1?'s':'')+' à votre boutique');
   tk.push('📅 Aujourd\'hui : '+todayO.length+' commande'+(todayO.length>1?'s':'')+' · '+F(todayO.filter(o=>o.statut==='confirmee').reduce((a,o)=>a+o.total,0)));
   myO.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,5).forEach(o=>tk.push((o.statut==='confirmee'?'💰 Vente':o.statut==='annulee'?'✖️ Annulée':'🛒 Nouvelle commande')+' · '+F(o.total)+' · '+ago(o.created_at)));
@@ -687,11 +750,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -833,7 +896,7 @@ function aNotif(){const st=S.settings,pub=st.vapid_public||'';
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -841,12 +904,15 @@ function nav(h){
 let lastHash=null;
 function render(keep){
   if(!S.loaded){app.innerHTML='<div class="loading">Chargement…</div>';return;}
-  const h=(location.hash||'#accueil').slice(1)||'accueil';
+  let h=(location.hash||'#accueil').slice(1)||'accueil';
+  if(h.startsWith('discussion-')){ui.vTab='messages';ui.conv=h.slice(11);history.replaceState(null,'','#vendeur');h='vendeur';}
   let html;
   if(h.startsWith('boutique-'))html=vBoutique(decodeURIComponent(h.slice(9)));
   else if(h.startsWith('produit-'))html=vProduit(h.slice(8));
   else if(h.startsWith('rayon-'))html=vRayon(decodeURIComponent(h.slice(6)));
   else if(h==='rayons')html=vRayons();
+  else if(h.startsWith('chat-'))html=vChat(decodeURIComponent(h.slice(5)));
+  else if(h==='discussions')html=vDiscussions();
   else if(h==='compte')html=vCompte();
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
@@ -900,6 +966,7 @@ async function showShopShare(){const s=myShop();if(!s)return;const l=document.ge
   l.innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><p class="muted" style="margin:0">Création de l\'image…</p></div></div>';
   const url=await shopImage(s);
   l.innerHTML='<div class="modal" data-a="closeModal"><div class="card stack" data-stop="1"><h2 style="font-size:17px">Image de ma boutique pour le statut</h2><img src="'+url+'" alt="Image de la boutique '+esc(s.nom)+'" style="border-radius:16px;width:100%;max-height:60vh;object-fit:contain"><a class="btn btn-v btn-s" href="'+url+'" download="'+esc(s.slug)+'-statut.jpg">Enregistrer l\'image</a><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Envoyer le lien</a><p class="small muted" style="margin:0">Publiez l\'image sur votre statut et mettez le lien en légende.</p><button type="button" class="btn btn-w btn-s" data-a="closeModal">Fermer</button></div></div>';}
+function showConvSig(id,vendeur){document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="convSig" data-id="'+esc(id)+'" data-v="'+(vendeur?1:0)+'"><h2 style="font-size:17px">Signaler cette discussion</h2><p class="small muted" style="margin:0">L\'équipe Gbairai pourra lire cette discussion pour vous aider.</p><label class="lbl">Motif<select class="in" name="motif">'+(vendeur?['Client insultant','Faux client ou arnaque','Commande non récupérée','Autre']:['Arnaque ou demande d\'argent','Article non livré','Vendeur insultant','Autre']).map(x=>'<option>'+x+'</option>').join('')+'</select></label><button class="btn btn-r btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-block" data-a="closeModal">Annuler</button></form></div>';}
 function showReport(shopId,motif,oid){const s=shopById(shopId);if(!s)return;
   document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="report" data-id="'+s.id+'"><h2 style="font-size:17px">Signaler « '+esc(s.nom)+' »</h2><label class="lbl">Motif<select class="in" name="motif">'+['Arnaque ou vol','Produit non reçu','Faux produit / contrefaçon','Comportement inacceptable','Contenu choquant','Autre'].map(x=>'<option'+(x===motif?' selected':'')+'>'+x+'</option>').join('')+'</select></label><label class="lbl">Que s\'est-il passé ?<textarea class="in" name="details" rows="3" maxlength="1000">'+(oid?'Commande n° '+esc(String(oid).slice(0,8).toUpperCase())+' : ':'')+'</textarea></label><p class="small muted" style="margin:0">Vous avez une capture d\'écran ? Envoyez-la aussi au support sur WhatsApp.</p><label class="lbl">Votre contact (facultatif)<input class="in" name="contact" maxlength="60" placeholder="Numéro pour vous rappeler"></label><button class="btn btn-o btn-block" type="submit">Envoyer le signalement</button><button type="button" class="btn btn-w btn-s" data-a="closeModal">Annuler</button></form></div>';}
 async function showShare(pid){
@@ -925,6 +992,14 @@ const A={
   copy:t=>copy(t.dataset.text),
   share:t=>showShare(t.dataset.id),
   closeModal:()=>{document.getElementById('layer').innerHTML='';},
+  convSignal:t=>showConvSig(t.dataset.id,false),
+  convSignalV:t=>showConvSig(t.dataset.id,true),
+  convOpen:t=>{ui.conv=t.dataset.id;render();},
+  convBack:()=>{ui.conv=null;render();},
+  litOpen:t=>{ui.lit=t.dataset.id;render();},
+  litBack:()=>{ui.lit=null;render();},
+  litClose:t=>act(async()=>{await q(sb.from('conversations').update({signale:false}).eq('id',t.dataset.id));ui.lit=null;},'Litige clos'),
+  litBlock:t=>{const c=(S.litiges||[]).find(x=>x.id===t.dataset.id);if(!c)return;act(()=>q(sb.from('blacklist').upsert({phone:waNum(c.client_tel),motif:'Litige : '+(c.motif||'discussion signalée')})),'Numéro bloqué');},
   follow:t=>{const id=t.dataset.id,on=!isFollow(id),s=shopById(id);setFollow(id,on);if(ui.nbAb[id]!=null)ui.nbAb[id]=Math.max(0,ui.nbAb[id]+(on&&pushOn()?1:!on&&pushOn()?-1:0));render(true);
     if(on&&s){if(!pushOn()&&pushOK()&&S.settings.vapid_public)askAlerts(s);else toast('Vous suivez '+s.nom);}else if(s)toast('Vous ne suivez plus '+s.nom);},
   pushOn:()=>{document.getElementById('layer').innerHTML='';pushEnable().then(()=>render(true));},
@@ -1044,6 +1119,21 @@ const FORMS={
     if(!r.data.session){const l=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(l.error)throw new Error('Compte créé, mais la connexion a échoué. Réessayez dans « Me connecter ».');}
     const u=(await sb.auth.getUser()).data.user;S.user=u;await createShop(d);ui.vTab='accueil';
   },'Boutique créée'),
+  chatSend:(d,f)=>{const sid=f.dataset.id,t=String(d.texte||'').trim();if(!t)return;
+    if(d.nom){client.nom=String(d.nom).trim().slice(0,80);if(d.tel)client.tel=String(d.tel).trim().slice(0,30);lsSet('gbairai-client',client);}
+    const st=chatSt(sid),btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;
+    (async()=>{let cid=convMap[sid];
+      if(!cid){const r=await sb.rpc('conv_ouvrir',{sid,k:ck,nom:client.nom||'',tel:client.tel||''});if(r.error||!r.data)throw new Error(r.error?errMsg(r.error):'Impossible d\'écrire à cette boutique.');cid=r.data;convMap[sid]=cid;lsSet('gbairai-convs',convMap);pushSync();}
+      const r=await sb.rpc('conv_envoyer',{cid,k:ck,t});if(r.error||r.data===false)throw new Error(r.error?errMsg(r.error):'Message non envoyé.');
+      (st.msgs||(st.msgs=[])).push({de:'client',texte:t,created_at:new Date().toISOString()});
+      const ta=f.querySelector('textarea');if(ta)ta.value='';render(true);const box=document.getElementById('chatbox');if(box)box.scrollTop=box.scrollHeight;
+      notifyAnon({kind:'message',conv_id:cid,k:ck});
+    })().catch(e=>{toast(e.message||'Message non envoyé');if(btn)btn.disabled=false;});},
+  vReply:(d,f)=>{const cid=f.dataset.id,t=String(d.texte||'').trim();if(!t)return;const btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;
+    q(sb.from('messages').insert({conv_id:cid,de:'vendeur',texte:t.slice(0,1000)})).then(()=>{(ui.vmsgs[cid]||(ui.vmsgs[cid]=[])).push({de:'vendeur',texte:t,created_at:new Date().toISOString()});const c=(S.convs||[]).find(x=>x.id===cid);if(c){c.last_msg=t.slice(0,120);c.last_at=new Date().toISOString();}
+      const ta=f.querySelector('textarea');if(ta)ta.value='';render(true);const box=document.getElementById('chatbox');if(box)box.scrollTop=box.scrollHeight;notify({kind:'message',conv_id:cid});},e=>{toast(errMsg(e));if(btn)btn.disabled=false;});},
+  convSig:(d,f)=>{const id=f.dataset.id,v=f.dataset.v==='1',cid=v?id:convMap[id];document.getElementById('layer').innerHTML='';
+    sb.rpc('conv_signaler',{cid,k:v?'00000000-0000-4000-8000-000000000000':ck,m:String(d.motif||'')}).then(r=>{if(r.data){toast('Signalement envoyé. Merci.');const c=(S.convs||[]).find(x=>x.id===cid);if(c)c.signale=true;render(true);}else toast('Signalement impossible');},()=>toast('Signalement impossible'));},
   csignup:d=>act(async()=>{
     if(waNum(d.phone).length<12)throw new Error('Numéro de téléphone invalide (10 chiffres).');
     const nom=String(d.nom||'').trim().slice(0,80);
@@ -1106,7 +1196,7 @@ document.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();
   const d={};new FormData(f).forEach((v,k)=>d[k]=v);const fn=FORMS[f.dataset.f];if(fn)fn(d,f);
 });
-window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;ui.type=null;document.getElementById('layer').innerHTML='';render();});
+window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.mes=null;ui.taille=null;ui.type=null;ui.dl=undefined;document.getElementById('layer').innerHTML='';render();});
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
 function ping(){if(S.user&&!isAdmin()&&myShop()&&!document.hidden)sb.rpc('je_suis_la').then(()=>{},()=>{});}

@@ -34,12 +34,21 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return send(res, 405, { error: 'Méthode non autorisée' });
   if (!pret) return send(res, 200, { envoye: 0, pret: false });
   try {
+    let body = req.body; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } } body = body || {};
+    // Message d'un client (sans compte) → prévenir le vendeur, seulement pour le 1er message non lu
+    if (body.kind === 'message' && body.k) {
+      if (!UUID.test(body.conv_id || '') || !UUID.test(body.k)) return send(res, 400, { error: 'Discussion invalide.' });
+      const c = (await get('conversations?select=id,shop_id,client_nom,last_msg,non_lus_vendeur,last_at&id=eq.' + body.conv_id + '&client_key=eq.' + body.k))[0];
+      if (!c || c.non_lus_vendeur !== 1 || Date.now() - new Date(c.last_at) > 120000) return send(res, 200, { envoye: 0 });
+      const subs = await get('push_subs?select=endpoint,p256dh,auth&vendeur_shop=eq.' + c.shop_id);
+      const n = await pushAll(subs, { title: '💬 ' + (c.client_nom || 'Un client') + ' vous écrit', body: c.last_msg, url: '/#discussion-' + c.id, tag: 'conv-' + c.id });
+      return send(res, 200, { envoye: n });
+    }
     const auth = req.headers.authorization || '';
     if (!/^Bearer .+/.test(auth)) return send(res, 401, { error: 'Connectez-vous.' });
     const u = await fetch(URL_SB + '/auth/v1/user', { headers: { apikey: ANON, Authorization: auth } });
     if (!u.ok) return send(res, 401, { error: 'Session expirée.' });
     const me = await u.json();
-    let body = req.body; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } } body = body || {};
     const admin = (await get('profiles?select=role&id=eq.' + me.id))[0];
     const isAdmin = admin && admin.role === 'admin';
 
@@ -53,6 +62,18 @@ module.exports = async (req, res) => {
       if (!ETAPES[etape]) return send(res, 200, { envoye: 0 });
       const subs = await get('push_subs?select=endpoint,p256dh,auth&orders=cs.%7B' + o.id + '%7D');
       const n = await pushAll(subs, { title: s.nom + ' · n° ' + o.id.slice(0, 8).toUpperCase(), body: ETAPES[etape], url: '/#suivi-' + o.id, tag: 'cmd-' + o.id });
+      return send(res, 200, { envoye: n });
+    }
+
+    if (body.kind === 'message') {
+      if (!UUID.test(body.conv_id || '')) return send(res, 400, { error: 'Discussion invalide.' });
+      const c = (await get('conversations?select=id,shop_id,last_msg,non_lus_client&id=eq.' + body.conv_id))[0];
+      if (!c) return send(res, 404, { error: 'Discussion introuvable.' });
+      const s = (await get('shops?select=nom,owner&id=eq.' + c.shop_id))[0];
+      if (!s || s.owner !== me.id) return send(res, 403, { error: 'Interdit.' });
+      if (c.non_lus_client !== 1) return send(res, 200, { envoye: 0 });
+      const subs = await get('push_subs?select=endpoint,p256dh,auth&convs=cs.%7B' + c.id + '%7D');
+      const n = await pushAll(subs, { title: '💬 ' + s.nom + ' vous a répondu', body: c.last_msg, url: '/#chat-' + c.shop_id, tag: 'conv-' + c.id });
       return send(res, 200, { envoye: n });
     }
 
