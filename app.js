@@ -85,7 +85,7 @@ const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xx
 let ck=lsGet('gbairai-ck',null);if(!/^[0-9a-f-]{36}$/i.test(String(ck||''))){ck=uuid();lsSet('gbairai-ck',ck);}
 let convMap=lsGet('gbairai-convs',{})||{};
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={recu:{},espace:{},rel:null,cli:null,nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={story:null,pvSel:{},podium:{},fete:new URLSearchParams(location.search).get('fete'),recu:{},espace:{},rel:null,cli:null,nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -210,7 +210,7 @@ async function loadAll(){
     const [st,shops,prods]=await Promise.all([q(sb.from('settings').select('*').eq('id',1).single()),q(sb.from('shops').select('*').order('created_at')),q(sb.from('products').select('*').order('created_at',{ascending:false}))]);
     S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];S.versements=[];S.commerciaux=[];
     const [rv,bn]=await Promise.all([safe(sb.from('reviews').select('*').order('created_at',{ascending:false}).limit(3000)),safe(sb.from('banners').select('*').order('ordre').order('created_at',{ascending:false}))]);
-    S.reviews=rv;S.banners=bn;S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
+    S.reviews=rv;S.banners=bn;S.best={};(await safe(sb.rpc('meilleures_ventes'))).forEach(x=>{S.best[x.pid]=x.n;});S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
     if(S.user){
       const prof=await q(sb.from('profiles').select('role').eq('id',S.user.id).maybeSingle());
       S.role=prof&&prof.role==='admin'?'admin':'vendeur';
@@ -353,7 +353,7 @@ async function clientSync(){
     S.synced=true;lsSet('gbairai-favoris',favs);lsSet('gbairai-suivis',follows);lsSet('gbairai-mes-commandes',myOrders);await clientSave();pushSync();render(true);
   }catch(e){}}
 function vCompte(){
-  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>';
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>'+prefsHTML();
   if(!S.user){const t=ui.cTab||'creer';
     return h+'<section class="hero"><span class="ball o" style="right:-46px;top:-46px;width:100px;height:100px"></span><h2 style="color:#fff;font-size:22px;margin:0">Votre compte Gbairai</h2><p style="margin:6px 0 0">Gratuit. Retrouvez vos commandes, vos favoris et vos boutiques sur tous vos téléphones.</p></section>'+
     '<div class="seg2">'+[['creer','Créer mon compte'],['login','Me connecter']].map(x=>'<button type="button" class="chip'+(t===x[0]?' on':'')+'" data-a="cTab" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
@@ -434,7 +434,7 @@ function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
   return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="icon-btn" href="#compte" aria-label="Mon compte">'+ic('user',20,S.user?'#0E7A5F':'#5B21B6')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
-  '<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
+  storiesHTML()+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
   bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
@@ -461,9 +461,9 @@ function results(){
   return h;
 }
 function shopCard(s){const n=shopProducts(s.id).filter(p=>p.visible).length;
-  return '<a class="shop" href="#boutique-'+esc(s.slug)+'"><div class="shop-cover" style="background:'+lin(s.couleur)+'">'+avatar(s)+(s.vedette?'<span class="badge b-orange" style="position:absolute;right:10px;top:10px">Vedette</span>':'')+'</div><div class="shop-body"><div class="shop-name">'+esc(s.nom)+verifBadge(s)+'</div>'+(enLigne(s)?'<span class="pres on">En ligne</span>':'')+'<div class="muted small" style="margin-top:4px">'+esc(place(s))+' · '+esc(catName(s.categorie))+' · '+n+' produit'+(n>1?'s':'')+'</div>'+ratingHTML(s.id,true)+'</div></a>';}
+  return '<a class="shop" href="#boutique-'+esc(s.slug)+'"><div class="shop-cover" style="background:'+coverBg(s)+'">'+avatar(s)+(s.vedette?'<span class="badge b-orange" style="position:absolute;right:10px;top:10px">Vedette</span>':'')+'</div><div class="shop-body"><div class="shop-name">'+esc(s.nom)+verifBadge(s)+'</div>'+(enLigne(s)?'<span class="pres on">En ligne</span>':'')+'<div class="muted small" style="margin-top:4px">'+esc(place(s))+' · '+esc(catName(s.categorie))+' · '+n+' produit'+(n>1?'s':'')+'</div>'+ratingHTML(s.id,true)+'</div></a>';}
 function pCard(p){const inCart=cart.some(l=>l.pid===p.id),pr=promoOn(p);
-  return '<div class="pcard"><div class="ptile"><a href="#produit-'+p.id+'">'+tile(p,120)+'</a>'+(pr?'<span class="pct">-'+pct(p)+' %</span>':'')+(pr&&p.promo_fin?'<span class="flash">'+ic('bolt',11,'#1B1033',2.4)+cdHTML(p.promo_fin)+'</span>':'')+favBtn(p.id)+'</div><a href="#produit-'+p.id+'"><div class="pname">'+esc(p.nom)+'</div></a><div class="pfoot"><span class="pp">'+priceHTML(p)+'</span>'+
+  return '<div class="pcard"><div class="ptile"><a href="#produit-'+p.id+'">'+tile(p,120)+'</a>'+(pr?'<span class="pct">-'+pct(p)+' %</span>':'')+pBadge(p)+(pr&&p.promo_fin?'<span class="flash">'+ic('bolt',11,'#1B1033',2.4)+cdHTML(p.promo_fin)+'</span>':'')+favBtn(p.id)+'</div><a href="#produit-'+p.id+'"><div class="pname">'+esc(p.nom)+'</div></a><div class="pfoot"><span class="pp">'+priceHTML(p)+'</span>'+
   (p.stock>0?'<button type="button" class="add'+(inCart?' in':'')+'" data-a="add" data-id="'+p.id+'" aria-label="'+(inCart?'Déjà dans le panier':'Ajouter au panier')+'">'+ic(inCart?'check':'plus',18,'#fff',2.6)+'</button>':'<span class="badge b-grey">Rupture</span>')+'</div></div>';}
 function favBtn(id,big){const on=isFav(id);return '<button type="button" class="fav'+(on?' on':'')+(big?' big':'')+'" data-a="fav" data-id="'+id+'" aria-label="'+(on?'Retirer des favoris':'Ajouter aux favoris')+'" aria-pressed="'+on+'">'+ic('heart',big?20:16,on?'#fff':'#9D174D',2.2)+'</button>';}
 function bannersHTML(){const b=S.banners.filter(x=>x.actif&&String(x.debut||'')<=today()&&(!x.fin||x.fin>=today()));if(!b.length)return '';
@@ -480,7 +480,7 @@ function vBoutique(slug){
   const prods=shopProducts(s.id).filter(p=>p.visible);
   const lines=cart.filter(l=>{const p=prodById(l.pid);return p&&p.shop_id===s.id;});
   const tot=lines.reduce((a,l)=>a+prix(prodById(l.pid))*l.qty,0);
-  return '<div class="wrap"><div class="cover" style="background:'+lin(s.couleur)+'"><span class="ball o" style="right:30px;top:40px;width:70px;height:70px;border-radius:22px;transform:rotate(18deg)"></span><div class="row between" style="padding:16px max(16px,env(safe-area-inset-left,0px))">'+back('#accueil')+'<button type="button" class="icon-btn" data-a="copy" data-text="'+esc(shopUrl(s))+'" aria-label="Copier le lien de la boutique">'+ic('share')+'</button></div></div>'+
+  return '<div class="wrap shopth" style="--shopc:'+pal(s.couleur)[1]+';--shopd:'+pal(s.couleur)[2]+'"><div class="cover" style="background:'+coverBg(s)+'"><span class="ball o" style="right:30px;top:40px;width:70px;height:70px;border-radius:22px;transform:rotate(18deg)"></span><div class="row between" style="padding:16px max(16px,env(safe-area-inset-left,0px))">'+back('#accueil')+'<button type="button" class="icon-btn" data-a="copy" data-text="'+esc(shopUrl(s))+'" aria-label="Copier le lien de la boutique">'+ic('share')+'</button></div></div>'+
   '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+presenceHTML(s)+ratingHTML(s.id)+'</div></div>'+
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
@@ -512,7 +512,7 @@ function vProduit(id){
   if(tailles.length&&!tailles.includes(ui.taille))ui.taille=tailles[0];if(!tailles.length)ui.taille=null;
   const single=[{p,qty:1,taille:ui.taille}],sid=oid('p-'+p.id),ph=photosOf(p);
   return '<div class="wrap"><div class="row between">'+back('#boutique-'+esc(s.slug),'Retour à la boutique')+'<div class="row" style="gap:8px"><a class="icon-btn" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(prodShareText(p))+'" aria-label="Partager ce produit sur WhatsApp">'+ic('share')+'</a><button type="button" class="icon-btn" data-a="share" data-id="'+p.id+'" aria-label="Image pour le statut">'+ic('image')+'</button>'+favBtn(p.id,true)+'</div></div>'+
-  '<div class="galwrap">'+(ph.length>1?'<div class="gal" id="gal">'+ph.map((u,i)=>'<img src="'+esc(u)+'" alt="Photo '+(i+1)+' de '+esc(p.nom)+'" loading="'+(i?'lazy':'eager')+'">').join('')+'</div><div class="gal-dots">'+ph.map((u,i)=>'<button type="button" class="'+(i?'':'on')+'" data-a="galGo" data-i="'+i+'" aria-label="Photo '+(i+1)+'"></button>').join('')+'</div>':tile(p,320,140))+
+  '<div class="galwrap">'+(ph.length?'<button type="button" class="zoombtn" data-a="zoom" data-pid="'+p.id+'">🔍 Zoom</button>':'')+(ph.length>1?'<div class="gal" id="gal">'+ph.map((u,i)=>'<img data-a="zoom" data-pid="'+p.id+'" data-i="'+i+'" src="'+esc(u)+'" alt="Photo '+(i+1)+' de '+esc(p.nom)+'" loading="'+(i?'lazy':'eager')+'">').join('')+'</div><div class="gal-dots">'+ph.map((u,i)=>'<button type="button" class="'+(i?'':'on')+'" data-a="galGo" data-i="'+i+'" aria-label="Photo '+(i+1)+'"></button>').join('')+'</div>':tile(p,320,140))+
   (promoOn(p)?'<span class="pct big">-'+pct(p)+' %</span>':'')+'</div>'+
   (promoOn(p)&&p.promo_fin?'<div class="flashbar">'+ic('bolt',18,'#1B1033',2.4)+'<b>Vente flash</b> · se termine dans '+cdHTML(p.promo_fin)+'</div>':'')+
   '<div class="card stack"><div class="row between" style="align-items:flex-start"><div style="min-width:0"><h1 style="font-size:21px">'+esc(p.nom)+'</h1><a class="small" href="#boutique-'+esc(s.slug)+'">'+esc(s.nom)+' · '+esc(place(s))+'</a></div><div class="pp big" style="white-space:nowrap;text-align:right">'+priceHTML(p)+'</div></div>'+
@@ -698,6 +698,110 @@ function vvCommandes(s){
   (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?recuBlock(o,s)+livBlock(o,s):'')+
   (o.statut==='envoyee'?'<div class="grid2"><button type="button" class="btn btn-g btn-s" data-a="confOrder" data-id="'+o.id+'">Confirmer la vente</button><button type="button" class="btn btn-w btn-s" data-a="cancelOrder" data-id="'+o.id+'">Annuler</button></div>':'')+'</div>').join(''):'<div class="card muted">Pas encore de commande. Partagez votre lien sur vos statuts.</div>');
 }
+/* ---------- PLUS BEAU : stories, badges, zoom, panier, thème, QR, carte, podium, fêtes ---------- */
+function storyList(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id)),m={},vu=lsGet('gbairai-stories',{});
+  S.products.forEach(p=>{if(p.visible&&p.stock>0&&ok.has(p.shop_id))(m[p.shop_id]=m[p.shop_id]||[]).push(p);});
+  return Object.keys(m).map(id=>{const ps=m[id].sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,8),last=String(ps[0].created_at||'');return {s:shopById(id),ps,last,vu:!!vu[id]&&vu[id]>=last};})
+    .sort((a,b)=>(a.vu-b.vu)||(b.s.vedette-a.s.vedette)||b.last.localeCompare(a.last)).slice(0,20);}
+function storiesHTML(){const L=storyList();if(!L.length)return '';
+  return '<div class="stories" aria-label="Nouveautés des boutiques">'+L.map((x,i)=>{const im=x.s.logo||x.ps[0].photo;return '<button type="button" class="st1" data-a="story" data-i="'+i+'"><span class="ring'+(x.vu?' seen':'')+'"><span class="ri" style="'+(im?'background-image:url(\''+esc(im)+'\')':'background:'+lin(x.s.couleur))+'">'+(im?'':esc(x.s.nom.slice(0,1).toUpperCase()))+'</span></span><span class="stn">'+esc(x.s.nom)+'</span></button>';}).join('')+'</div>';}
+let storyT=null;
+function storyStop(){clearTimeout(storyT);ui.story=null;}
+function storyShow(){const st=ui.story;if(!st)return;const x=st.list[st.i];if(!x){document.getElementById('layer').innerHTML='';storyStop();return;}
+  const p=x.ps[st.j],vu=lsGet('gbairai-stories',{});if(!vu[x.s.id]||vu[x.s.id]<x.last){vu[x.s.id]=x.last;lsSet('gbairai-stories',vu);}
+  document.getElementById('layer').innerHTML='<div class="storyv" data-a="storyTap" role="dialog" aria-label="Nouveautés de '+esc(x.s.nom)+'"><div class="sv-im" style="'+(p.photo?'background-image:url(\''+esc(p.photo)+'\')':'background:'+grad(p.couleur))+'"></div><div class="sv-prog">'+x.ps.map((_,k)=>'<i class="'+(k<st.j?'done':k===st.j?'run':'')+'"><b></b></i>').join('')+'</div>'+
+    '<div class="sv-head">'+avatar(x.s,34)+'<a href="#boutique-'+esc(x.s.slug)+'" data-a="storyClose" style="color:#fff;text-decoration:none"><b>'+esc(x.s.nom)+'</b></a><span>'+(p.created_at?ago(p.created_at):'')+'</span><button type="button" class="sv-x" data-a="storyClose" aria-label="Fermer">✕</button></div>'+
+    '<div class="sv-foot"><div class="sv-card"><b>'+esc(p.nom)+'</b><div class="sv-pr">'+priceHTML(p)+'</div></div><div class="grid2"><a class="btn btn-w" href="#produit-'+p.id+'" data-a="storyClose">Voir</a><button type="button" class="btn btn-g" data-a="storyAdd" data-id="'+p.id+'">🛒 Ajouter</button></div></div></div>';
+  clearTimeout(storyT);storyT=setTimeout(storyNext,5000);}
+function storyNext(){const st=ui.story;if(!st)return;if(st.j<st.list[st.i].ps.length-1)st.j++;else{st.i++;st.j=0;}storyShow();}
+function storyPrev(){const st=ui.story;if(!st)return;if(st.j>0)st.j--;else if(st.i>0){st.i--;st.j=0;}storyShow();}
+function pBadge(p){const d=p.created_at?(Date.now()-new Date(p.created_at).getTime())/864e5:99;
+  if(S.best&&S.best[p.id])return '<span class="pbadge b3">🏆 Meilleure vente</span>';
+  if(p.stock>0&&p.stock<=3)return '<span class="pbadge b2">🔥 Plus que '+p.stock+'</span>';
+  if(d<7)return '<span class="pbadge b1">✨ Nouveau</span>';return '';}
+function fly(src){try{const im=src&&src.querySelector('img'),to=document.querySelector('.nav a[href="#panier"]');if(!to||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const a=(im||src).getBoundingClientRect(),b=to.getBoundingClientRect(),el=document.createElement('div');el.className='flyer';
+  if(im)el.style.backgroundImage='url("'+im.src+'")';else el.style.background='var(--violet2)';
+  const sz=64;el.style.cssText+=';left:'+(a.left+a.width/2-sz/2)+'px;top:'+(a.top+a.height/2-sz/2)+'px;width:'+sz+'px;height:'+sz+'px';document.body.appendChild(el);
+  const dx=b.left+b.width/2-(a.left+a.width/2),dy=b.top+b.height/2-(a.top+a.height/2);
+  el.animate([{transform:'translate(0,0) scale(1) rotate(0)',opacity:1},{transform:'translate('+dx*0.45+'px,'+(dy*0.45-120)+'px) scale(.8) rotate(-12deg)',opacity:1,offset:.5},{transform:'translate('+dx+'px,'+dy+'px) scale(.2) rotate(-20deg)',opacity:.6}],{duration:750,easing:'cubic-bezier(.5,0,.6,1)'}).onfinish=()=>el.remove();
+  if(navigator.vibrate)navigator.vibrate(25);}catch(e){}}
+function bumpCart(){setTimeout(()=>{const n=document.querySelector('.nav a[href="#panier"]');if(n){n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');}},700);}
+/* Thème de boutique */
+const COVERS=[['','Couleur'],['wax','Wax'],['bogolan','Bogolan'],['degrade','Dégradé']];
+function coverBg(s){const p=pal(s.couleur),c=s.couverture||'';
+  if(c==='wax')return 'radial-gradient(circle at 50% 50%,rgba(255,255,255,.55) 0 5px,transparent 6px) 0 0/28px 28px,repeating-linear-gradient(45deg,'+p[1]+' 0 14px,#FF7A1A 14px 28px,#0E7A5F 28px 42px,#FACC15 42px 56px)';
+  if(c==='bogolan')return 'repeating-linear-gradient(90deg,transparent 0 18px,rgba(232,213,181,.9) 18px 21px),repeating-linear-gradient(0deg,#3F2A1D 0 16px,#5C3D2A 16px 22px,#E8D5B5 22px 25px)';
+  if(c==='degrade')return 'linear-gradient(135deg,'+p[1]+',#FF7A1A)';
+  if(/^https?:/.test(c))return 'linear-gradient(0deg,rgba(0,0,0,.35),transparent 60%),url(\''+esc(c)+'\') center/cover';
+  return lin(s.couleur);}
+function themeCard(s){const c=s.couverture||'';
+  return '<section class="card stack"><h3 style="font-size:15px">🎨 Thème de ma boutique</h3><div class="small muted">Couleur des boutons et de la page</div><div class="row wrapx" style="gap:10px">'+PAL.map((p,i)=>'<button type="button" class="swatch'+((s.couleur||0)%PAL.length===i?' on':'')+'" style="background:'+p[1]+'" data-a="setCouleur" data-v="'+i+'" aria-label="Couleur '+(i+1)+'"></button>').join('')+'</div>'+
+  '<div class="small muted">Couverture</div><div class="covers">'+COVERS.map(x=>'<button type="button" class="cov'+(c===x[0]?' on':'')+'" data-a="setCover" data-v="'+x[0]+'"><i style="background:'+coverBg({couleur:s.couleur,couverture:x[0]})+'"></i>'+x[1]+'</button>').join('')+
+  '<label class="cov'+(/^https?:/.test(c)?' on':'')+'"><i style="'+(/^https?:/.test(c)?'background:'+coverBg(s):'')+'">📷</i>Ma photo<input type="file" accept="image/*" data-file="cover" hidden></label></div></section>';}
+/* Mode sombre et son */
+function themeMode(){return lsGet('gbairai-theme','auto');}
+function applyTheme(){const m=themeMode(),dark=m==='dark'||(m==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=dark?'dark':'light';const mt=document.querySelector('meta[name=theme-color]');if(mt)mt.content=dark?'#130A24':'#5B21B6';}
+applyTheme();try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);}catch(e){}
+function prefsHTML(){const m=themeMode(),son=lsGet('gbairai-son',true);
+  return '<section class="card stack" style="gap:10px"><div class="row between"><b>🌙 Affichage</b><div class="seg">'+[['auto','Auto'],['light','Clair'],['dark','Sombre']].map(x=>'<button type="button" class="'+(m===x[0]?'on':'')+'" data-a="setTheme" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div></div><div class="row between"><b>🔔 Petits sons</b><div class="seg">'+[['1','Oui'],['0','Non']].map(x=>'<button type="button" class="'+((son?'1':'0')===x[0]?'on':'')+'" data-a="setSon" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div></div><span class="small muted">« Auto » suit le réglage du téléphone.</span></section>';}
+let actx=null;
+function tchin(){if(!lsGet('gbairai-son',true))return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const t=actx.currentTime;[[1318.5,0],[1760,.09],[2637,.18]].forEach(n=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=n[0];g.gain.setValueAtTime(0,t+n[1]);g.gain.linearRampToValueAtTime(.18,t+n[1]+.01);g.gain.exponentialRampToValueAtTime(.001,t+n[1]+.5);o.connect(g).connect(actx.destination);o.start(t+n[1]);o.stop(t+n[1]+.55);});}catch(e){}}
+function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const c=document.createElement('canvas');c.className='confetti';c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);const x=c.getContext('2d'),col=['#FF7A1A','#8B5CF6','#0E7A5F','#FACC15','#DB2777','#3B82F6'];
+  const P=Array.from({length:140},()=>({x:innerWidth/2+(Math.random()-.5)*80,y:innerHeight*.35,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,r:Math.random()*6.28,vr:(Math.random()-.5)*.4,w:6+Math.random()*6,h:9+Math.random()*7,c:col[Math.floor(Math.random()*col.length)]}));const t0=performance.now();
+  (function f(t){x.clearRect(0,0,c.width,c.height);P.forEach(p=>{p.vy+=.35;p.vx*=.99;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.w/2,-p.h/2,p.w,p.h);x.restore();});if(t-t0<2600)requestAnimationFrame(f);else c.remove();})(t0);}
+const PALIERS=[1,10,25,50,100,250,500,1000];
+function celebrate(o){confetti();tchin();if(navigator.vibrate)navigator.vibrate([30,40,30]);
+  const s=myShop(),n=s?S.orders.filter(x=>x.shop_id===s.id&&x.statut==='confirmee').length:0,pal_=PALIERS.includes(n);
+  const el=document.createElement('div');el.className='celeb';el.innerHTML='<div class="celeb-card"><div style="font-size:46px">'+(pal_?'🏅':'🎉')+'</div><b>'+(pal_?(n===1?'Première vente !':'Objectif atteint : '+n+' ventes !'):'Vente confirmée !')+'</b><span>'+(o?'+'+F(o.total)+' dans votre caisse':'')+'</span></div>';document.body.appendChild(el);setTimeout(()=>el.remove(),2600);}
+/* QR code du reçu */
+let qrLoad=null;
+function fillQR(){const el=document.getElementById('recuqr');if(!el||el.dataset.done)return;
+  qrLoad=qrLoad||new Promise((ok,ko)=>{if(window.qrcode)return ok();const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';sc.onload=ok;sc.onerror=()=>{qrLoad=null;ko();};document.head.appendChild(sc);});
+  qrLoad.then(()=>{const e2=document.getElementById('recuqr');if(!e2||e2.dataset.done)return;const qr=window.qrcode(0,'M');qr.addData(e2.dataset.url);qr.make();e2.innerHTML=qr.createSvgTag(4,0);e2.dataset.done='1';},()=>{const e2=document.getElementById('recuqr');if(e2)e2.closest('.recu-qr').remove();});}
+/* Carte des points de vente */
+function geo(cb){if(!navigator.geolocation){toast('Position non disponible sur ce téléphone');return;}toast('Recherche de votre position…');
+  navigator.geolocation.getCurrentPosition(p=>cb({lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6}),()=>toast('Autorisez la position, puis réessayez'),{enableHighAccuracy:true,timeout:15000});}
+const mapsUrl=(p,s)=>p.lat!=null&&p.lng!=null?'https://www.google.com/maps/dir/?api=1&destination='+p.lat+','+p.lng:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.nom,p.adresse,s.quartier,villeOf(s),'Côte d\'Ivoire'].filter(Boolean).join(', '));
+function pointsHTML(s){const pts=(S.points||[]).filter(p=>p.shop_id===s.id).sort((a,b)=>(b.principal?1:0)-(a.principal?1:0));if(!pts.length)return '';
+  const geoP=pts.filter(p=>p.lat!=null&&p.lng!=null),sel=geoP.find(p=>p.id===ui.pvSel[s.id])||geoP[0];
+  const map=sel?'<div class="pvmap"><iframe title="Carte" loading="lazy" referrerpolicy="no-referrer" src="https://www.openstreetmap.org/export/embed.html?bbox='+(sel.lng-.008)+','+(sel.lat-.005)+','+(sel.lng+.008)+','+(sel.lat+.005)+'&layer=mapnik&marker='+sel.lat+','+sel.lng+'"></iframe><span class="pvtag">📍 '+esc(sel.nom)+'</span></div>':'';
+  return '<section class="card stack"><h2 style="font-size:17px">Nos points de vente</h2>'+map+pts.map(p=>'<div class="pvrow'+(sel&&sel.id===p.id?' on':'')+'"'+(p.lat!=null?' data-a="pvSel" data-shop="'+s.id+'" data-id="'+p.id+'"':'')+'><div class="row" style="gap:10px;align-items:flex-start">'+ic('pin',18,'#5B21B6')+'<div style="min-width:0;flex:1"><b>'+esc(p.nom)+'</b>'+(p.principal?' <span class="badge b-green">Principal</span>':'')+(p.adresse||p.horaires?'<div class="small muted">'+esc([p.adresse,p.horaires].filter(Boolean).join(' · '))+'</div>':'')+'</div></div><div class="grid2"><a class="btn btn-v btn-s" target="_blank" rel="noopener" href="'+esc(mapsUrl(p,s))+'">🧭 Itinéraire</a>'+(p.tel?'<a class="btn btn-w btn-s" href="tel:'+esc(p.tel.replace(/\s/g,''))+'">📞 Appeler</a>':'<a class="btn btn-w btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',14,'#0E7A5F')+'WhatsApp</a>')+'</div></div>').join('')+'</section>';}
+/* Podium */
+function podiumHTML(L,title){const t=L.slice(0,3),o=[t[1],t[0],t[2]],med=['🥈','🥇','🥉'],cls=['p2','p1','p3'];
+  return '<section class="card stack"><b>🏆 '+esc(title)+'</b><div class="podium">'+o.map((x,i)=>x?'<div class="pd '+cls[i]+(x.moi?' moi':'')+'"><span class="md">'+med[i]+'</span><b>'+esc(x.nom)+'</b><small>'+x.ventes+' vente'+(x.ventes>1?'s':'')+'</small></div>':'<div class="pd empty"></div>').join('')+'</div>'+
+  (L.length>3?'<div class="stack" style="gap:0">'+L.slice(3,8).map((x,i)=>'<div class="row between small" style="padding:7px 0;border-top:1px solid var(--line)"><span>'+(i+4)+'. '+esc(x.nom)+(x.moi?' (vous)':'')+'</span><b>'+x.ventes+'</b></div>').join('')+'</div>':'')+'</section>';}
+function espacePodium(sec){const d=ui.podium[sec];if(d===undefined){ui.podium[sec]=null;sb.rpc('podium_commercial',{sec}).then(r=>{ui.podium[sec]=r.data||[];render(true);},()=>{ui.podium[sec]=[];});return '';}
+  if(!d||!d.length||!d.some(x=>x.ventes))return '';const me=d.findIndex(x=>x.moi);
+  return (me>=0?'<div class="note" style="text-align:center;font-size:14px">'+(me===0?'🥇 Vous êtes premier ce mois-ci, bravo !':'Vous êtes <b>'+(me+1)+'e</b> ce mois-ci. Encore un effort ! 💪')+'</div>':'')+podiumHTML(d,'Podium du mois');}
+/* Fêtes */
+const FETES=[{id:'noel',nom:'Noël et Nouvel An',e:'🎄',k:'Joyeuses fêtes 🎅',t:'Les cadeaux de Noël sont ici',c:'Offrez ivoirien',bg:'linear-gradient(150deg,#B91C1C,#7F1D1D)',snow:1},
+  {id:'valentin',nom:'Saint-Valentin',e:'💝',k:'Saint-Valentin',t:'Un cadeau pour votre chéri(e)',c:'Bijoux, parfums, tenues',bg:'linear-gradient(150deg,#DB2777,#9D174D)'},
+  {id:'ramadan',nom:'Ramadan',e:'🌙',k:'Ramadan Moubarak',t:'Tout pour la rupture et la fête',c:'Boubous, bazin, cuisine',bg:'linear-gradient(150deg,#1E3A8A,#0F172A)',snow:1},
+  {id:'korite',nom:'Korité',e:'🌙',k:'Bonne fête de Korité',t:'Bazin, boubous et cadeaux',c:'Tenues de fête',bg:'linear-gradient(150deg,#065F46,#064E3B)'},
+  {id:'paques',nom:'Pâques',e:'🐣',k:'Joyeuses Pâques',t:'Tenues et cadeaux pour la fête',c:'Pour toute la famille',bg:'linear-gradient(150deg,#F59E0B,#B45309)'},
+  {id:'meres',nom:'Fête des mères',e:'💐',k:'Bonne fête maman',t:'Gâtez maman cette semaine',c:'Idées cadeaux',bg:'linear-gradient(150deg,#EC4899,#BE185D)'},
+  {id:'tabaski',nom:'Tabaski',e:'🐑',k:'Bonne fête de Tabaski',t:'Bazin, boubous et cadeaux',c:'Tenues de fête',bg:'linear-gradient(150deg,#065F46,#064E3B)'},
+  {id:'independance',nom:'Fête de l\'indépendance',e:'🇨🇮',k:'7 août · Fête de l\'indépendance',t:'Fiers d\'acheter ivoirien !',c:'Made in CI à l\'honneur',bg:'linear-gradient(150deg,#F77F00 0 33%,#FFFFFF 33% 66%,#009E60 66%)',dark:1}];
+const LUNE={ramadan:{2026:'2026-02-18',2027:'2027-02-08',2028:'2028-01-28',2029:'2029-01-16'},korite:{2026:'2026-03-20',2027:'2027-03-10',2028:'2028-02-27',2029:'2029-02-15'},tabaski:{2026:'2026-05-27',2027:'2027-05-17',2028:'2028-05-05',2029:'2029-04-24'}};
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addD=(s_,n)=>{const a=s_.split('-').map(Number),d=new Date(a[0],a[1]-1,a[2]+n);return ymd(d);};
+function paques(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return ymd(new Date(y,mo-1,da));}
+function feteRange(id,y){
+  if(id==='noel')return [y+'-12-15',(y+1)+'-01-02'];if(id==='valentin')return [y+'-02-07',y+'-02-14'];if(id==='independance')return [y+'-08-01',y+'-08-07'];
+  if(id==='paques'){const p=paques(y);return [addD(p,-7),addD(p,1)];}
+  if(id==='meres'){const d=new Date(y,4,31);d.setDate(31-d.getDay());const e=ymd(d);return [addD(e,-7),e];}
+  const L=LUNE[id]&&LUNE[id][y];if(!L)return null;
+  if(id==='ramadan')return [L,addD(LUNE.korite[y]||addD(L,29),-3)];if(id==='korite')return [addD(L,-2),addD(L,1)];if(id==='tabaski')return [addD(L,-10),addD(L,1)];return null;}
+function feteNext(id){const t=today(),y=+t.slice(0,4);for(const yy of [y-1,y,y+1]){const r=feteRange(id,yy);if(r&&r[1]>=t)return r;}return null;}
+function feteDates(id){const o=(S.settings.fetes||{}).dates||{},ov=o[id];if(ov&&ov[1]>=addD(today(),-60))return ov;return feteNext(id);}
+function feteActive(){if(ui.fete)return FETES.find(f=>f.id===ui.fete)||null;const off=(S.settings.fetes||{}).off||[],t=today();return FETES.find(f=>{if(off.includes(f.id))return false;const r=feteDates(f.id);return r&&r[0]<=t&&t<=r[1];})||null;}
+function feteHTML(){const f=feteActive();if(!f)return '';
+  return '<section class="fete'+(f.dark?' clair':'')+'" style="background:'+f.bg+'">'+(f.snow?'<span class="snow"></span>':'')+'<span class="fe">'+f.e+'</span><small>'+esc(f.k)+'</small><h2>'+esc(f.t)+'</h2><span class="fchip">'+esc(f.c)+'</span></section>';}
+function aFetes(){const o=S.settings.fetes||{},off=o.off||[];
+  return '<form class="card stack" data-f="fetes" style="max-width:640px"><h2 style="font-size:17px">🎉 Accueil des fêtes</h2><p class="small muted" style="margin:0">L\'accueil se décore tout seul pendant ces dates. Ramadan, Korité et Tabaski suivent la lune : corrigez les dates si besoin. Aperçu : ajoutez <b>?fete=noel</b> à l\'adresse du site.</p>'+
+  FETES.map(f=>{const r=feteDates(f.id)||['',''];return '<div class="row wrapx" style="gap:8px;border-top:1px solid var(--line);padding-top:8px"><label class="row" style="gap:6px;flex:1 1 180px;font-weight:600"><input type="checkbox" name="on_'+f.id+'" value="1"'+(off.includes(f.id)?'':' checked')+'> '+f.e+' '+esc(f.nom)+'</label><input class="in" type="date" name="du_'+f.id+'" value="'+r[0]+'" style="flex:1 1 130px;height:40px" aria-label="Début"><input class="in" type="date" name="au_'+f.id+'" value="'+r[1]+'" style="flex:1 1 130px;height:40px" aria-label="Fin"></div>';}).join('')+
+  '<button class="btn btn-v btn-block" type="submit">Enregistrer les fêtes</button></form>';}
 /* ---------- REÇUS, RELEVÉS, ÉQUIPE ---------- */
 function recuBlock(o,s){const pts=(S.points||[]).filter(p=>p.shop_id===s.id),pm=o.paye_mode||'';
   let h='<div class="stack recublk" style="gap:8px"><span class="small" style="font-weight:700">🧾 Paiement'+(o.recu_num?' · Reçu n° '+recuNo(o.recu_num):'')+'</span><div class="chips wrapc">'+PAYE.map(x=>'<button type="button" class="chip chip-s'+(pm===x[0]?' on':'')+'" data-a="payeMode" data-id="'+o.id+'" data-v="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
@@ -718,9 +822,11 @@ function vRecu(id){
     '<div class="recu-tot"><span>TOTAL</span><b class="num">'+fmtN(d.total)+' FCFA</b></div>'+
     (pm?'<div class="small">Paiement : <b>'+esc(payeName(pm))+'</b>'+(pm==='credit'?' (reste à payer)':'')+'</div>':'<div class="small muted">Mode de paiement pas encore indiqué.</div>')+
     (d.livree_code?'<div class="small" style="color:var(--green);font-weight:700">✔ Livraison confirmée par le code du client</div>':'')+
+    '<div class="recu-qr"><div id="recuqr" data-url="'+esc(recuUrl(id))+'"></div><div class="small"><b>Scannez pour vérifier</b><br><span class="muted">Le code ouvre le vrai reçu sur '+esc(S.settings.nom||'Gbairai Market')+'. Un faux reçu ne peut pas avoir ce code.</span></div></div>'+
     '<div class="recu-foot small muted">Reçu vérifiable en ligne :<br><b>'+esc(recuUrl(id).replace(/^https?:\/\//,''))+'</b><br>Merci pour votre achat · '+esc(S.settings.nom||'Gbairai Market')+'</div></div>';
   const txt='🧾 Reçu n° '+n+' · '+d.boutique+'\n'+it.map(x=>'• '+x.qty+' × '+x.nom+' – '+F(x.prix*x.qty)).join('\n')+'\nTotal : '+fmtN(d.total)+' FCFA'+(pm?'\nPaiement : '+payeName(pm):'')+'\nVoir le reçu : '+recuUrl(id);
   h+='<div class="grid2 noprint"><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Partager</a><button type="button" class="btn btn-v" data-a="print">📄 PDF / Imprimer</button></div>';
+  setTimeout(fillQR,0);
   return h+'<p class="small muted noprint" style="text-align:center;margin:0">Pour le PDF : touchez « PDF / Imprimer » puis choisissez « Enregistrer en PDF ».</p></div>';}
 function vvReleve(s){const m=ui.rel,cur=monthOf(today());
   const tx=S.txs.filter(t=>t.shop_id===s.id&&monthOf(t.date)===m).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -761,9 +867,10 @@ function vvEquipe(s){
   const pts=(S.points||[]).filter(p=>p.shop_id===s.id),ok=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='confirmee'),cms=(S.commerciaux||[]).filter(c=>c.shop_id===s.id);
   let h='<div class="note">Ajoutez vos points de vente (magasin, stand, dépôt) et vos commerciaux. Chaque commercial reçoit son propre lien : les commandes passées avec son lien sont comptées pour lui.</div>';
   h+='<div class="sec-title"><h2>Points de vente</h2><span class="cnt-pill">'+pts.length+'</span></div>';
-  h+=pts.map(p=>{const o=ok.filter(x=>ptOf(x,cms)===p.id),pc=cms.filter(c=>c.point_id===p.id);return '<div class="card stack" style="gap:6px"><div class="row between"><b>📍 '+esc(p.nom)+'</b>'+(p.principal?'<span class="badge b-green">Principal</span>':'')+'</div>'+(p.adresse||p.horaires||p.responsable||p.tel?'<div class="small muted">'+esc([p.adresse,p.horaires,p.responsable?'Resp. : '+p.responsable:'',p.tel].filter(Boolean).join(' · '))+'</div>':'')+(pc.length?'<div class="small">👥 Commerciaux : <b>'+pc.map(c=>esc(c.nom)).join(', ')+'</b></div>':'')+'<div class="row between small"><span>'+o.length+' vente'+(o.length>1?'s':'')+' confirmée'+(o.length>1?'s':'')+'</span><b class="num">'+F(sumT(o))+'</b></div><button type="button" class="linkbtn" data-a="delPoint" data-id="'+p.id+'">'+ic('trash',13)+'Supprimer</button></div>';}).join('');
-  h+='<form class="card stack" data-f="point"><h2 style="font-size:16px">+ Ajouter un point de vente</h2><label class="lbl">Nom<input class="in" name="nom" required maxlength="60" placeholder="Ex. : Boutique Adjamé"></label><div class="grid2"><label class="lbl">Adresse<input class="in" name="adresse" maxlength="160" placeholder="Marché, rue…"></label><label class="lbl">Horaires<input class="in" name="horaires" maxlength="60" placeholder="8h-19h, lun-sam"></label><label class="lbl">Responsable<input class="in" name="responsable" maxlength="60"></label><label class="lbl">Téléphone<input class="in" name="tel" type="tel" maxlength="30"></label></div><label class="row small" style="gap:8px"><input type="checkbox" name="principal" value="1"> Point principal</label><button class="btn btn-v btn-block" type="submit">Ajouter</button></form>';
+  h+=pts.map(p=>{const o=ok.filter(x=>ptOf(x,cms)===p.id),pc=cms.filter(c=>c.point_id===p.id);return '<div class="card stack" style="gap:6px"><div class="row between"><b>📍 '+esc(p.nom)+'</b>'+(p.principal?'<span class="badge b-green">Principal</span>':'')+'</div>'+(p.adresse||p.horaires||p.responsable||p.tel?'<div class="small muted">'+esc([p.adresse,p.horaires,p.responsable?'Resp. : '+p.responsable:'',p.tel].filter(Boolean).join(' · '))+'</div>':'')+(pc.length?'<div class="small">👥 Commerciaux : <b>'+pc.map(c=>esc(c.nom)).join(', ')+'</b></div>':'')+'<div class="row between small"><span>'+o.length+' vente'+(o.length>1?'s':'')+' confirmée'+(o.length>1?'s':'')+'</span><b class="num">'+F(sumT(o))+'</b></div><div class="row between"><button type="button" class="linkbtn" data-a="geoPoint" data-id="'+p.id+'">📍 '+(p.lat!=null?'Position enregistrée ✔ (changer)':'Placer sur la carte (ma position)')+'</button><button type="button" class="linkbtn" data-a="delPoint" data-id="'+p.id+'">'+ic('trash',13)+'Supprimer</button></div></div>';}).join('');
+  h+='<form class="card stack" data-f="point"><h2 style="font-size:16px">+ Ajouter un point de vente</h2><label class="lbl">Nom<input class="in" name="nom" required maxlength="60" placeholder="Ex. : Boutique Adjamé"></label><div class="grid2"><label class="lbl">Adresse<input class="in" name="adresse" maxlength="160" placeholder="Marché, rue…"></label><label class="lbl">Horaires<input class="in" name="horaires" maxlength="60" placeholder="8h-19h, lun-sam"></label><label class="lbl">Responsable<input class="in" name="responsable" maxlength="60"></label><label class="lbl">Téléphone<input class="in" name="tel" type="tel" maxlength="30"></label></div><label class="row small" style="gap:8px"><input type="checkbox" name="principal" value="1"> Point principal</label><input type="hidden" name="lat"><input type="hidden" name="lng"><button type="button" class="btn btn-w btn-s" data-a="geoFill">📍 Je suis au point de vente : prendre ma position</button><button class="btn btn-v btn-block" type="submit">Ajouter</button></form>';
   h+='<div class="sec-title"><h2>Commerciaux</h2><span class="cnt-pill">'+cms.length+'</span></div>';
+  {const mo=monthOf(today()),L=cms.map(c=>({nom:c.nom.split(' ')[0],ventes:S.orders.filter(o=>o.shop_id===s.id&&o.commercial_code===c.code&&o.statut==='confirmee'&&monthOf(o.created_at)===mo).length})).sort((a,b)=>b.ventes-a.ventes);if(L.some(x=>x.ventes))h+=podiumHTML(L,'Podium de '+moisFr(mo));}
   h+=cms.map(c=>{const all=S.orders.filter(o=>o.shop_id===s.id&&o.commercial_code===c.code),v=all.filter(o=>o.statut==='confirmee'),lv=v.filter(o=>o.livree_code),com=Math.round(sumT(lv)*Number(c.commission||0)/100),link=refUrl(s.slug,c.code);
     const msg='Bonjour '+c.nom+' 👋\nVotre lien de vente pour '+s.nom+' (partagez-le à vos clients et sur vos statuts) :\n'+link+'\n\nVotre espace pour suivre vos ventes et votre commission (ne le partagez pas) :\n'+espaceUrl(c.secret);
     return '<div class="card stack" style="gap:8px'+(c.actif?'':';opacity:.6')+'"><div class="row between"><span class="row" style="gap:8px;min-width:0"><span class="av-c">'+esc(c.nom.slice(0,1).toUpperCase())+'</span><span style="min-width:0"><b class="ell" style="display:block">'+esc(c.nom)+'</b><span class="small muted">Code <b>'+esc(c.code)+'</b> · '+esc(String(c.commission))+' %'+(c.tel?' · '+esc(c.tel):'')+'</span></span></span>'+(c.actif?'':'<span class="badge b-grey">En pause</span>')+'</div>'+
@@ -773,8 +880,6 @@ function vvEquipe(s){
     '<div class="row between"><button type="button" class="linkbtn" data-a="cmActif" data-id="'+c.id+'" data-v="'+(c.actif?'0':'1')+'">'+(c.actif?'⏸ Mettre en pause':'▶ Réactiver')+'</button><button type="button" class="linkbtn" data-a="delCm" data-id="'+c.id+'">'+ic('trash',13)+'Supprimer</button></div></div>';}).join('');
   h+='<form class="card stack" data-f="commercial"><h2 style="font-size:16px">+ Ajouter un commercial</h2><div class="grid2"><label class="lbl">Nom<input class="in" name="nom" required maxlength="60" placeholder="Ex. : Koffi"></label><label class="lbl">WhatsApp<input class="in" name="tel" type="tel" maxlength="30"></label></div><label class="lbl">Commission (%)<input class="in" name="commission" inputmode="decimal" value="10"></label>'+(pts.length?'<label class="lbl">Point de vente<select class="in" name="point_id"><option value="">Aucun</option>'+pts.map(p=>'<option value="'+p.id+'">'+esc(p.nom)+'</option>').join('')+'</select></label>':'')+'<p class="small muted" style="margin:0">La commission compte seulement les ventes livrées et confirmées par le code du client.</p><button class="btn btn-v btn-block" type="submit">Ajouter</button></form>';
   return h;}
-function pointsHTML(s){const pts=(S.points||[]).filter(p=>p.shop_id===s.id).sort((a,b)=>(b.principal?1:0)-(a.principal?1:0));if(!pts.length)return '';
-  return '<section class="card stack"><h2 style="font-size:17px">Nos points de vente</h2>'+pts.map(p=>'<div class="row" style="gap:10px;align-items:flex-start">'+ic('pin',18,'#5B21B6')+'<div style="min-width:0"><b>'+esc(p.nom)+'</b>'+(p.principal?' <span class="badge b-green">Principal</span>':'')+(p.adresse||p.horaires?'<div class="small muted">'+esc([p.adresse,p.horaires].filter(Boolean).join(' · '))+'</div>':'')+(p.tel?'<a class="small" style="font-weight:700" href="tel:'+esc(p.tel.replace(/\s/g,''))+'">📞 '+esc(p.tel)+'</a>':'')+'</div></div>').join('')+'</section>';}
 function vCommercial(sec){
   const d=ui.espace[sec];
   if(d===undefined){ui.espace[sec]=null;sb.rpc('espace_commercial',{sec}).then(r=>{ui.espace[sec]=(r.data&&r.data[0])||false;render(true);},()=>{ui.espace[sec]=false;render(true);});}
@@ -785,6 +890,7 @@ function vCommercial(sec){
   h+='<section class="hero"><span class="ball g" style="right:-24px;top:-24px;width:100px;height:100px"></span><p style="margin:0">Bonjour '+esc(d.nom)+' · commercial de '+esc(d.boutique)+'</p><div class="small" style="color:#E9DDFF;margin-top:8px">Votre commission</div><div class="num" style="position:relative;font-family:var(--display);font-weight:800;font-size:30px">'+F(com)+'</div><div class="small" style="color:#E9DDFF">'+esc(String(d.commission))+' % des ventes livrées et confirmées par le client</div></section>'+
   '<div class="kpis">'+kpi(v.length,'Commandes')+kpi(ok.length,'Ventes confirmées')+kpi(F(sumT(ok)),'Chiffre d\'affaires')+kpi(lv.length,'Livrées ✔')+'</div>'+
   '<section class="card stack"><h2 style="font-size:16px">Votre lien de vente</h2><p class="small muted" style="margin:0">Partagez ce lien à vos clients et sur vos statuts. Chaque commande passée avec ce lien compte pour vous (code <b>'+esc(d.code)+'</b>).</p><div class="linkbox small">'+esc(link)+'</div><div class="grid2"><button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(link)+'">🔗 Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent('🛍 Commandez chez '+d.boutique+' : '+link)+'">'+ic('wa',16,'#fff')+'Partager</a></div></section>'+
+  espacePodium(sec)+
   '<div class="sec-title"><h2>Vos ventes (4 derniers mois)</h2><span class="cnt-pill">'+v.length+'</span></div>'+
   (v.length?'<div class="card" style="padding:4px 14px">'+v.map((x,i)=>'<div class="row between" style="padding:10px 0;'+(i?'border-top:1px solid #F0EAFB':'')+'"><span style="min-width:0"><b style="display:block;font-size:13px">'+esc(x.client||'Client')+' · n° '+esc(String(x.id).toUpperCase())+'</b><span class="small muted">'+esc(dfr(x.date))+(x.code?' · livrée ✔':'')+'</span></span><span class="row" style="gap:6px"><span class="badge '+(lab[x.statut]||lab.envoyee)[1]+'">'+(lab[x.statut]||lab.envoyee)[0]+'</span><b class="num">'+F(x.total)+'</b></span></div>').join('')+'</div>':'<div class="card muted">Pas encore de vente avec votre lien.</div>')+
   '<p class="small muted" style="text-align:center;margin:0">Cette page est personnelle : ne partagez pas son lien.</p>';
@@ -847,7 +953,7 @@ function shopFields(s,admin){
 }
 function vvReglages(s){
   const pv=S.priv[s.id]||{};
-  return '<section class="card row" style="gap:14px">'+avatar(s,72)+'<div class="stack" style="gap:8px;min-width:0"><b>Logo de la boutique</b><span class="small muted">Carré de préférence. Il s\'affiche sur l\'accueil et sur votre page.</span><div class="row" style="gap:8px"><label class="btn btn-v btn-s">'+(s.logo?'Changer':'Ajouter mon logo')+'<input type="file" accept="image/*" data-file="logo" hidden></label>'+(s.logo?'<button type="button" class="btn btn-w btn-s" data-a="rmLogo">Retirer</button>':'')+'</div></div></section>'+
+  return themeCard(s)+prefsHTML()+'<section class="card row" style="gap:14px">'+avatar(s,72)+'<div class="stack" style="gap:8px;min-width:0"><b>Logo de la boutique</b><span class="small muted">Carré de préférence. Il s\'affiche sur l\'accueil et sur votre page.</span><div class="row" style="gap:8px"><label class="btn btn-v btn-s">'+(s.logo?'Changer':'Ajouter mon logo')+'<input type="file" accept="image/*" data-file="logo" hidden></label>'+(s.logo?'<button type="button" class="btn btn-w btn-s" data-a="rmLogo">Retirer</button>':'')+'</div></div></section>'+
   '<form class="card stack" data-f="shop" data-id="'+s.id+'">'+shopFields(s,false)+'<h3 style="font-size:15px">Vérification</h3><label class="lbl">Numéro de la pièce d\'identité (CNI)<input class="in" id="s-cni" name="cni" value="'+esc(pv.cni)+'" placeholder="C00XXXXXXX"></label><p class="small muted" style="margin:0">Visible seulement par vous et l\'administrateur.</p><button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+
   '<form class="card stack" data-f="pwd"><h3 class="row" style="font-size:15px;gap:6px">'+ic('key',16,'#5B21B6')+'Changer mon mot de passe</h3><label class="lbl">Nouveau mot de passe<input class="in" name="password" type="password" required minlength="6" autocomplete="new-password"></label><label class="lbl">Répéter le mot de passe<input class="in" name="password2" type="password" required minlength="6" autocomplete="new-password"></label><button class="btn btn-w btn-block" type="submit">Changer le mot de passe</button></form>'+
   '<button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button>';
@@ -983,7 +1089,7 @@ function aParams(){
   return '<form class="card stack" data-f="params" style="max-width:640px"><h2 style="font-size:17px">Paramètres de la plateforme</h2><label class="lbl">Nom de la plateforme<input class="in" id="p-nom" name="nom" value="'+esc(st.nom)+'"></label><div class="grid2"><label class="lbl">Produits gratuits par vendeur<input class="in" id="p-lim" name="limite_gratuit" type="number" min="1" value="'+st.limite_gratuit+'"></label><label class="lbl">Prix Pro (FCFA / mois)<input class="in" id="p-pro" name="prix_pro" inputmode="numeric" value="'+esc(st.prix_pro)+'" placeholder="à définir"></label></div><div class="grid2"><label class="lbl">Prix mise en vedette (FCFA / semaine)<input class="in" id="p-ved" name="prix_vedette" inputmode="numeric" value="'+esc(st.prix_vedette)+'" placeholder="à définir"></label><label class="lbl">Prix bannière (FCFA / semaine)<input class="in" id="p-ban" name="prix_banniere" inputmode="numeric" value="'+esc(st.prix_banniere||'')+'" placeholder="à définir"></label></div>'+
   '<h3 style="font-size:15px">Vos numéros pour recevoir les paiements</h3><div class="grid2">'+OPS.map(o=>'<label class="lbl">'+o[1]+'<input class="in" name="pm_'+o[0]+'" type="tel" value="'+esc((st.paiement||{})[o[0]]||'')+'" placeholder="07 XX XX XX XX"></label>').join('')+'</div>'+
   '<label class="lbl">WhatsApp du support (mot de passe oublié, aide)<input class="in" name="support_whatsapp" type="tel" value="'+esc(st.support_whatsapp||'')+'" placeholder="07 XX XX XX XX"></label>'+
-  '<button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+aNotif();
+  '<button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+aFetes()+aNotif();
 }
 function aNotif(){const st=S.settings,pub=st.vapid_public||'';
   if(ui.npret===undefined){ui.npret=null;fetch('/api/notify').then(r=>r.json()).then(j=>{ui.npret=j;render(true);},()=>{ui.npret=false;render(true);});}
@@ -1091,8 +1197,8 @@ const A={
   reload:()=>{S.loaded=false;render();loadAll().then(()=>render());},
   cat:t=>{ui.cat=ui.cat===t.dataset.id?null:t.dataset.id;render(true);},
   quartier:t=>{ui.quartier=t.dataset.id;render(true);},
-  add:t=>{const p=prodById(t.dataset.id);if(p.tailles&&p.tailles.trim()){location.hash='produit-'+p.id;return;}addToCart(p.id);render(true);},
-  addT:t=>{addToCart(t.dataset.id,ui.taille);render(true);},
+  add:t=>{const p=prodById(t.dataset.id);if(p.tailles&&p.tailles.trim()){location.hash='produit-'+p.id;return;}const n=cartCount();addToCart(p.id);if(cartCount()>n)fly(t.closest('.pcard'));render(true);bumpCart();},
+  addT:t=>{const n=cartCount();addToCart(t.dataset.id,ui.taille);if(cartCount()>n)fly(document.querySelector('.galwrap'));render(true);bumpCart();},
   taille:t=>{ui.taille=t.dataset.id;render(true);},
   qty:t=>{const i=+t.dataset.i,l=cart[i];if(!l)return;const p=prodById(l.pid);l.qty+=+t.dataset.d;if(l.qty<=0)cart.splice(i,1);else if(p&&l.qty>p.stock){l.qty=p.stock;toast('Stock disponible : '+p.stock);}saveCart();render(true);},
   order:t=>logOrder(t.dataset.shop,'whatsapp',t.dataset.single,t.dataset.oid),
@@ -1136,6 +1242,21 @@ const A={
   stock:t=>{const p=prodById(t.dataset.id);const v=Math.max(0,p.stock+(+t.dataset.d));p.stock=v;render(true);act(()=>q(sb.from('products').update({stock:v}).eq('id',p.id)));},
   periode:t=>{ui.caissePeriode=t.dataset.id;render(true);},
   releve:t=>{ui.rel=t.dataset.id;render(true);},
+  story:t=>{const L=storyList();ui.story={list:L,i:+t.dataset.i,j:0};storyShow();},
+  storyTap:(t,e)=>{if(!ui.story)return;if(e.clientX<window.innerWidth/3)storyPrev();else storyNext();},
+  storyClose:()=>{storyStop();document.getElementById('layer').innerHTML='';},
+  storyAdd:t=>{const n=cartCount();addToCart(t.dataset.id);if(cartCount()>n){toast('Ajouté au panier');navigator.vibrate&&navigator.vibrate(25);}},
+  zoom:t=>{const p=prodById(t.dataset.pid);if(!p)return;const ph=photosOf(p),g=document.getElementById('gal'),i=t.dataset.i!=null?+t.dataset.i:g?Math.round(g.scrollLeft/Math.max(1,g.clientWidth)):0;
+    document.getElementById('layer').innerHTML='<div class="zoomv" data-a="closeModal"><div class="zoombar"><span>'+esc(p.nom)+'</span><button type="button" class="icon-btn" data-a="closeModal" aria-label="Fermer">✕</button></div><div class="zoomsc" data-stop="1">'+ph.map(u=>'<img src="'+esc(u)+'" alt="" data-a="zoomT">').join('')+'</div><div class="zoomhint">Touchez deux fois pour zoomer · glissez pour changer de photo</div></div>';
+    const sc=document.querySelector('.zoomsc');if(sc)sc.scrollLeft=sc.clientWidth*i;},
+  zoomT:t=>{const now=Date.now();if(now-(t._last||0)<350){t.classList.toggle('z2');}t._last=now;},
+  setCouleur:t=>act(()=>q(sb.from('shops').update({couleur:+t.dataset.v}).eq('id',myShop().id)),'Couleur changée'),
+  setCover:t=>act(()=>q(sb.from('shops').update({couverture:t.dataset.v}).eq('id',myShop().id)),'Couverture changée'),
+  setTheme:t=>{lsSet('gbairai-theme',t.dataset.v);applyTheme();render(true);},
+  setSon:t=>{lsSet('gbairai-son',t.dataset.v==='1');render(true);if(t.dataset.v==='1')tchin();},
+  pvSel:t=>{ui.pvSel[t.dataset.shop]=t.dataset.id;render(true);},
+  geoFill:t=>geo(pos=>{const f=t.closest('form');f.elements.lat.value=pos.lat;f.elements.lng.value=pos.lng;t.textContent='📍 Position prise ✔';}),
+  geoPoint:t=>geo(pos=>act(()=>q(sb.from('points_vente').update(pos).eq('id',t.dataset.id)),'Position enregistrée')),
   relClose:()=>{ui.rel=null;render();},
   cliOpen:t=>{ui.cli=t.dataset.id;render();},
   cliClose:()=>{ui.cli=null;render();},
@@ -1151,7 +1272,7 @@ const A={
   confOrder:t=>act(async()=>{const o=S.orders.find(x=>x.id===t.dataset.id);
     await q(sb.from('orders').update({statut:'confirmee'}).eq('id',o.id));notify({kind:'commande',order_id:o.id});
     for(const it of (o.items||[])){const p=prodById(it.pid);if(p)await q(sb.from('products').update({stock:Math.max(0,p.stock-it.qty)}).eq('id',p.id));}
-    await q(sb.from('txs').insert({shop_id:o.shop_id,type:'recette',montant:o.total,libelle:'Vente · '+(o.items||[]).map(i=>i.qty+' '+i.nom).join(', ').slice(0,120),date:today()}));},'Vente confirmée : caisse et stock mis à jour'),
+    await q(sb.from('txs').insert({shop_id:o.shop_id,type:'recette',montant:o.total,libelle:'Vente · '+(o.items||[]).map(i=>i.qty+' '+i.nom).join(', ').slice(0,120),date:today()}));setTimeout(()=>celebrate(o),300);},'Vente confirmée : caisse et stock mis à jour'),
   cancelOrder:t=>act(()=>q(sb.from('orders').update({statut:'annulee'}).eq('id',t.dataset.id)).then(r=>{notify({kind:'commande',order_id:t.dataset.id});return r;})),
   shopShare:()=>showShopShare(),
   liv:t=>act(()=>q(sb.from('orders').update({livraison:t.dataset.v}).eq('id',t.dataset.id)).then(r=>{notify({kind:'commande',order_id:t.dataset.id});return r;}),'Livraison mise à jour'),
@@ -1227,6 +1348,7 @@ document.addEventListener('change',async e=>{
   if(e.target.name==='categorie'&&e.target.type==='radio'&&e.target.closest('form[data-f="produit"]')){const t=document.getElementById('f-type');if(t)t.innerHTML=typeOpts(e.target.value,'');document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(e.target)));return;}
   if(e.target.dataset&&e.target.dataset.file==='catphoto'&&e.target.files[0]){const id=e.target.dataset.id;try{const r=await resizePhoto(e.target.files[0],700);act(async()=>{const url=await uploadPhoto(r.blob);await saveCat(id,{photo:url});},'Photo du rayon changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.a2==='payDuree'){ui.pay.duree=+e.target.value;render(true);return;}
+  if(e.target.dataset&&e.target.dataset.file==='cover'&&e.target.files[0]){try{const r=await resizePhoto(e.target.files[0],1200);act(async()=>{const url=await uploadPhoto(r.blob);await q(sb.from('shops').update({couverture:url}).eq('id',myShop().id));},'Couverture changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.file==='photo'&&e.target.files[0]){
     try{const r=await resizePhoto(e.target.files[0]);keepForm();ui.photo=r;render(true);restoreForm();}catch(err){toast('Impossible de lire cette photo');}
   }
@@ -1250,8 +1372,9 @@ async function createShop(d){
   await q(sb.from('shop_private').insert({shop_id:ins.id}));
 }
 const FORMS={
+  fetes:(d,f)=>act(async()=>{const o={off:[],dates:{}};FETES.forEach(x=>{if(!d['on_'+x.id])o.off.push(x.id);const a=d['du_'+x.id],b=d['au_'+x.id],c=feteNext(x.id);if(a&&b&&c&&(a!==c[0]||b!==c[1]))o.dates[x.id]=[a,b];});await q(sb.from('settings').update({fetes:o}).eq('id',1));},'Fêtes enregistrées'),
   versement:(d,f)=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('versements').insert({shop_id:myShop().id,client_tel:f.dataset.tel,montant:m,mode:d.mode||'especes',note:String(d.note||'').trim().slice(0,120),date:today()}));},'Versement enregistré'),
-  point:d=>act(async()=>{const s=myShop(),pr=!!d.principal;if(pr)await safe(sb.from('points_vente').update({principal:false}).eq('shop_id',s.id));await q(sb.from('points_vente').insert({shop_id:s.id,nom:String(d.nom).trim().slice(0,60),adresse:String(d.adresse||'').trim().slice(0,160),horaires:String(d.horaires||'').trim().slice(0,60),responsable:String(d.responsable||'').trim().slice(0,60),tel:String(d.tel||'').trim().slice(0,30),principal:pr}));},'Point de vente ajouté'),
+  point:d=>act(async()=>{const s=myShop(),pr=!!d.principal;if(pr)await safe(sb.from('points_vente').update({principal:false}).eq('shop_id',s.id));await q(sb.from('points_vente').insert(Object.assign({shop_id:s.id,nom:String(d.nom).trim().slice(0,60),adresse:String(d.adresse||'').trim().slice(0,160),horaires:String(d.horaires||'').trim().slice(0,60),responsable:String(d.responsable||'').trim().slice(0,60),tel:String(d.tel||'').trim().slice(0,30),principal:pr},d.lat&&d.lng?{lat:+d.lat,lng:+d.lng}:{})));},'Point de vente ajouté'),
   commercial:d=>act(async()=>{const s=myShop(),nom=String(d.nom).trim().slice(0,60);if(!nom)throw new Error('Indiquez le nom.');const cm=Math.max(0,Math.min(50,Math.round(n0(String(d.commission||'0').replace(',','.'))*10)/10));await q(sb.from('commerciaux').insert({shop_id:s.id,nom,tel:String(d.tel||'').trim().slice(0,30),code:codeFrom(nom,s.id),commission:cm,point_id:d.point_id||null}));},'Commercial ajouté'),
   signup:d=>act(async()=>{
     if(waNum(d.phone).length<12)throw new Error('Numéro WhatsApp invalide (10 chiffres).');
@@ -1339,7 +1462,7 @@ document.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();
   const d={};new FormData(f).forEach((v,k)=>d[k]=v);const fn=FORMS[f.dataset.f];if(fn)fn(d,f);
 });
-window.addEventListener('hashchange',()=>{ui.confirm=null;ui.suivi={};ui.recu={};ui.espace={};ui.mes=null;ui.taille=null;ui.type=null;ui.dl=undefined;document.getElementById('layer').innerHTML='';render();});
+window.addEventListener('hashchange',()=>{storyStop();ui.confirm=null;ui.suivi={};ui.recu={};ui.espace={};ui.mes=null;ui.taille=null;ui.type=null;ui.dl=undefined;document.getElementById('layer').innerHTML='';render();});
 (function(){try{const c=new URLSearchParams(location.search).get('c');if(!c)return;const code=c.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20),m=(location.hash||'').match(/^#boutique-(.+)$/);if(code&&m)lsSet('gbairai-ref',{slug:decodeURIComponent(m[1]),code,ts:Date.now()});history.replaceState(null,'',location.pathname+location.hash);}catch(e){}})();
 sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED')return;});
 render();
