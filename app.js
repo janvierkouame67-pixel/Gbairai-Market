@@ -1802,6 +1802,12 @@ render();
 function ping(){if(S.user&&!isAdmin()&&myShop()&&!document.hidden)sb.rpc('je_suis_la').then(()=>{},()=>{});}
 setInterval(()=>{ping();if(document.hidden||!S.loaded)return;sb.from('shops').select('id,vu_le').then(r=>{if(r&&!r.error&&r.data)r.data.forEach(x=>{const s=shopById(x.id);if(s)s.vu_le=x.vu_le;});},()=>{});},120000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)ping();});
+/* Œil dans chaque champ mot de passe : afficher / cacher ce qu'on tape */
+const EYE_ON='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>';
+function addEyes(root){(root||document).querySelectorAll('input[type="password"]:not([data-eye])').forEach(i=>{i.setAttribute('data-eye','1');const w=document.createElement('span');w.className='pwbox';i.parentNode.insertBefore(w,i);w.appendChild(i);const b=document.createElement('button');b.type='button';b.className='pweye';b.setAttribute('aria-label','Afficher le mot de passe');b.innerHTML=EYE_ON;w.appendChild(b);});}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pweye');if(!b)return;e.preventDefault();e.stopPropagation();const i=b.parentNode.querySelector('input');const vis=i.type==='password';i.type=vis?'text':'password';b.innerHTML=vis?EYE_OFF:EYE_ON;b.setAttribute('aria-label',vis?'Cacher le mot de passe':'Afficher le mot de passe');b.classList.toggle('on',vis);},true);
+new MutationObserver(()=>addEyes()).observe(document.body,{childList:true,subtree:true});
 window.GB={S:S,shopById:shopById,prodById:prodById,askAlerts:askAlerts};
 loadAll().then(()=>render());
 })();

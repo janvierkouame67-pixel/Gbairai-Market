@@ -688,3 +688,12 @@ a.badge{text-decoration:none}
 @keyframes dlBob{0%,70%,100%{transform:translateY(0)}80%{transform:translateY(3px)}90%{transform:translateY(-1px)}}
 @media (min-width:900px){.dl-btn{left:32px;bottom:28px}}
 @media (prefers-reduced-motion:reduce){.dl-btn,.dl-btn svg{animation:none}}
+
+/* Œil des mots de passe */
+.pwbox{position:relative;display:block;width:100%}
+.pwbox .in{padding-right:48px}
+.pweye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:12px;background:transparent;color:#6B5E85;display:grid;place-items:center;cursor:pointer}
+.pweye.on{color:#6D28D9}
+.pweye:focus-visible{outline:2px solid #8B5CF6}
+.auth3d .pweye{color:rgba(255,255,255,.75)}.auth3d .pweye.on{color:#FFB37A}
+:root[data-theme="dark"] .pweye{color:#B9AED3}
