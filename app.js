@@ -437,7 +437,7 @@ function vAccueil(){
   storiesHTML()+annonceHTML('clients')+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
-  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
+  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+promoAppHTML()+'<a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
 }
 function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
   const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
@@ -473,6 +473,21 @@ function flashHTML(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(
   const ps=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id)&&promoOn(p)).sort((a,b)=>(a.promo_fin?0:1)-(b.promo_fin?0:1)||pct(b)-pct(a)).slice(0,12);
   if(!ps.length)return '';
   return '<section class="flashbox"><div class="row" style="gap:8px"><h2 class="row" style="gap:6px;font-size:18px">'+ic('bolt',20,'#FF7A1A',2.4)+'Promos et ventes flash</h2><span class="cnt-pill">'+ps.length+'</span></div><div class="hscroll">'+ps.map(pCard).join('')+'</div></section>';}
+function clientsAgg(orders){const m={};orders.filter(o=>o.client_tel||o.client_nom).forEach(o=>{const k=o.client_tel?waNum(o.client_tel):'nom:'+String(o.client_nom).toLowerCase();
+  const c=m[k]=m[k]||{nom:'',tel:o.client_tel||'',adresse:'',n:0,ok:0,total:0,first:o.created_at,last:o.created_at,shops:new Set()};c.n++;if(o.client_nom)c.nom=c.nom||o.client_nom;if(o.client_adresse)c.adresse=c.adresse||o.client_adresse;
+  const sh=shopById(o.shop_id);if(sh)c.shops.add(sh.nom);if(o.statut==='confirmee'){c.ok++;c.total+=o.total||0;}if(String(o.created_at)>String(c.last))c.last=o.created_at;if(String(o.created_at)<String(c.first))c.first=o.created_at;});
+  return Object.values(m).sort((a,b)=>b.total-a.total||b.n-a.n);}
+function csvCell(v){let t=String(v==null?'':v);if(/^[=@\t\r]/.test(t)||/^[+-][^\d\s]/.test(t))t="'"+t;return /[;"\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;}
+function downloadCSV(name,head,rows){const txt='﻿'+[head].concat(rows).map(r=>r.map(csvCell).join(';')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+function clientsCSV(orders,withShop,file){const L=clientsAgg(orders);if(!L.length)return toast('Aucun client pour le moment');
+  const head=['Nom','Téléphone','Adresse','Commandes','Achats confirmés','Total dépensé (FCFA)','Premier contact','Dernière commande'].concat(withShop?['Boutiques']:[]);
+  downloadCSV(file+'-'+today()+'.csv',head,L.map(c=>[c.nom,String(c.tel||'').replace(/\D/g,'').replace(/(\d{2})(?=\d)/g,'$1 '),c.adresse,c.n,c.ok,c.total,String(c.first).slice(0,10),String(c.last).slice(0,10)].concat(withShop?[[...c.shops].join(', ')]:[])));
+  toast(L.length+' client'+(L.length>1?'s':'')+' téléchargé'+(L.length>1?'s':''));}
+function promoWaHTML(s){const n=waNum(s.whatsapp||'');if(n.length<11)return '';
+  return '<a class="promowa" target="_blank" rel="noopener" href="https://wa.me/'+n+'?text='+encodeURIComponent('Bonjour '+s.nom+' 👋 Je veux recevoir vos nouveautés et promos sur WhatsApp. Mon nom : ')+'"><span class="pw-ic">📲</span><span><b>Recevoir les promos sur WhatsApp</b><small>Un message part chez la boutique : elle vous ajoute à sa liste.</small></span>'+ic('wa',20,'#0E7A5F')+'</a>';}
+function promoAppHTML(){const n=waNum(S.settings.support_whatsapp||'');if(n.length<11||localStorage.getItem('gbairai-promo-vu'))return '';
+  return '<div class="promowa"><span class="pw-ic">🎁</span><a target="_blank" rel="noopener" data-a="promoGo" href="https://wa.me/'+n+'?text='+encodeURIComponent('Bonjour '+(S.settings.nom||'Gbairai Market')+' 👋 Je veux recevoir les bons plans et les nouvelles boutiques sur WhatsApp. Ma ville : ')+'" style="flex:1;color:inherit"><b>Les bons plans sur WhatsApp</b><small>Laissez votre numéro : promos et nouvelles boutiques près de chez vous.</small></a><button type="button" class="linkbtn" data-a="promoVu" aria-label="Fermer">✕</button></div>';}
 function vBoutique(slug){
   const s=S.shops.find(x=>x.slug===slug);
   if(s&&isFollow(s.id)&&ui.seenNow!==s.id){ui.seenNow=s.id;setTimeout(()=>{seen[s.id]=new Date().toISOString();lsSet('gbairai-vus',seen);},0);}
@@ -489,7 +504,7 @@ function vBoutique(slug){
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>'+
   (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
   (lines.length?'<a class="btn btn-v btn-block" href="#panier" style="justify-content:space-between"><span>'+lines.reduce((a,l)=>a+l.qty,0)+' article(s) · <span class="num">'+fmtN(tot)+' FCFA</span></span><span>Voir le panier</span></a>':'')+
-  pointsHTML(s)+reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
+  promoWaHTML(s)+pointsHTML(s)+reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
 }
 function alsoHTML(s){const cats=new Set(shopProducts(s.id).map(p=>p.categorie).concat([s.categorie])),v=villeOf(s);
   const list=S.shops.filter(x=>x.id!==s.id&&x.statut==='actif').map(x=>({x,k:(x.categorie===s.categorie?3:0)+(shopProducts(x.id).some(p=>cats.has(p.categorie))?1:0)+(villeOf(x)===v?2:0)+(x.verification==='verifie'?1:0)+(x.vedette?1:0)+Math.random()*.5}))
@@ -995,7 +1010,7 @@ function vvClients(s){
     if(o.statut==='confirmee'){c.ok++;c.total+=o.total;}if(String(o.created_at)>String(c.last))c.last=o.created_at;});
   const L=Object.values(m).sort((a,b)=>b.total-a.total||b.n-a.n);
   return '<div class="kpis">'+kpi(L.length,'Clients','','hero')+kpi(L.filter(c=>c.ok>1).length,'Clients fidèles (2 achats et +)')+kpi(F(L.reduce((a,c)=>a+c.total,0)),'Total dépensé')+'</div>'+
-  '<div class="note">Les clients qui laissent leur nom et leur numéro dans le panier apparaissent ici. Relancez-les sur WhatsApp quand vous avez des nouveautés.</div>'+
+  '<div class="note">Les clients qui laissent leur nom et leur numéro dans le panier apparaissent ici. Ceux qui touchent « Recevoir les promos » sur votre page vous écrivent directement sur WhatsApp : ajoutez-les à votre liste de diffusion.</div>'+
   (L.length?L.map(c=>'<div class="card stack" style="gap:6px"><div class="row between"><b>'+esc(c.nom||'Client')+'</b>'+(c.ok>1?'<span class="badge b-orange">Fidèle</span>':'')+'</div><div class="small muted">'+esc([c.tel,c.adresse].filter(Boolean).join(' · '))+'</div><div class="row between small"><span>'+c.n+' commande'+(c.n>1?'s':'')+' · dernière '+ago(c.last)+'</span><b class="num">'+F(c.total)+'</b></div>'+(c.tel?cliDue(s,c.tel):'')+(c.tel?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(c.tel)+'?text='+encodeURIComponent('Bonjour '+(c.nom||'')+' 👋 Nouveautés chez '+s.nom+' ! Venez voir : '+shopUrl(s))+'">'+ic('wa',16,'#fff')+'Relancer sur WhatsApp</a>':'')+'</div>').join(''):'<div class="card muted">Pas encore de fiche client.</div>');
 }
 const OPS=[['orange','Orange Money','#FF7900'],['mtn','MTN MoMo','#FFCB05'],['moov','Moov Money','#0066B3'],['wave','Wave','#1DC8F2']];
@@ -1142,7 +1157,7 @@ function aProduits(){
 }
 function aCommandes(){
   const lab={envoyee:'<span class="badge b-orange">Envoyée</span>',confirmee:'<span class="badge b-green">Confirmée</span>',annulee:'<span class="badge b-grey">Annulée</span>'};
-  return '<section class="card stack"><h2 style="font-size:17px">Commandes ('+S.orders.length+')</h2>'+(S.orders.length?'<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Boutique</th><th>Articles</th><th>Total</th><th>Canal</th><th>Statut</th></tr></thead><tbody>'+S.orders.map(x=>{const s=shopById(x.shop_id);return '<tr><td>'+esc(String(x.created_at).slice(0,16).replace('T',' '))+'</td><td>'+esc(s?s.nom:'?')+'</td><td>'+(x.items||[]).map(i=>i.qty+' × '+esc(i.nom)).join('<br>')+'</td><td class="num"><b>'+fmtN(x.total)+' F</b></td><td>'+(x.canal==='telegram'?'Telegram':'WhatsApp')+'</td><td>'+lab[x.statut]+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="muted" style="margin:0">Aucune commande pour l\'instant.</p>')+'</section>';
+  return '<section class="card stack"><div class="row between wrapx" style="gap:8px"><h2 style="font-size:17px">Commandes ('+S.orders.length+')</h2><button type="button" class="btn btn-w btn-s" data-a="cliCSVall">⬇ Tous les clients (Excel)</button></div>'+(S.orders.length?'<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Boutique</th><th>Articles</th><th>Total</th><th>Canal</th><th>Statut</th></tr></thead><tbody>'+S.orders.map(x=>{const s=shopById(x.shop_id);return '<tr><td>'+esc(String(x.created_at).slice(0,16).replace('T',' '))+'</td><td>'+esc(s?s.nom:'?')+'</td><td>'+(x.items||[]).map(i=>i.qty+' × '+esc(i.nom)).join('<br>')+'</td><td class="num"><b>'+fmtN(x.total)+' F</b></td><td>'+(x.canal==='telegram'?'Telegram':'WhatsApp')+'</td><td>'+lab[x.statut]+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="muted" style="margin:0">Aucune commande pour l\'instant.</p>')+'</section>';
 }
 function saveCat(id,patch){const list=(S.settings.categories||[]).slice();let i=list.findIndex(c=>c&&c.id===id);
   if(i<0){const r=RAYONS.find(r=>r[0]===id);list.push({id,nom:r?r[1]:id});i=list.length-1;}
@@ -1328,6 +1343,9 @@ const A={
   ppHide:()=>{const m=myShop();if(m)lsSet('gbairai-pp-'+m.id,1);render(true);},
   ppShare:()=>{const m=myShop();if(!m)return;copy(shopUrl(m),'Lien copié : collez-le sur votre statut');lsSet('gbairai-partage-'+m.id,1);render(true);},
   editAide:t=>{ui.aEditAide=t.dataset.id;render(true);},
+  cliCSVall:()=>{if(isAdmin())clientsCSV(S.orders,true,'clients-gbairai');},
+  promoVu:()=>{try{localStorage.setItem('gbairai-promo-vu','1');}catch(e){}render();},
+  promoGo:()=>{try{localStorage.setItem('gbairai-promo-vu','1');}catch(e){}setTimeout(render,500);},
   regAll:t=>{ui.regOpen=t.dataset.v==='1'?'all':null;render();},
   regPrint:()=>{document.querySelectorAll('details.regart').forEach(d=>d.open=true);setTimeout(()=>window.print(),100);},
   delAide:t=>act(()=>q(sb.from('aide').delete().eq('id',t.dataset.id)),'Supprimé'),
