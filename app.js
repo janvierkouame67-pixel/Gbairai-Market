@@ -85,7 +85,7 @@ const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xx
 let ck=lsGet('gbairai-ck',null);if(!/^[0-9a-f-]{36}$/i.test(String(ck||''))){ck=uuid();lsSet('gbairai-ck',ck);}
 let convMap=lsGet('gbairai-convs',{})||{};
 const orderIds={};const oid=k=>orderIds[k]||(orderIds[k]=uuid());
-const ui={story:null,pvSel:{},podium:{},fete:new URLSearchParams(location.search).get('fete'),recu:{},espace:{},rel:null,cli:null,nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
+const ui={aideQ:'',aidePub:null,aideOpen:null,tabHelp:false,aEditAide:null,story:null,pvSel:{},podium:{},fete:new URLSearchParams(location.search).get('fete'),recu:{},espace:{},rel:null,cli:null,nbAb:{},chat:{},vmsgs:{},conv:null,lit:null,gal:0,suivi:{},mes:null,fiab:{},verif:null,pay:{type:'pro',duree:1,op:''},extras:undefined,bannerImg:undefined,aPwd:null,pwdHelp:false,per:30,q:'',quartier:'Tous',cat:null,taille:null,vTab:'accueil',aTab:'tableau',edit:null,photo:undefined,adminShop:null,confirm:null,caissePeriode:'mois',aFilter:'tous',aQ:'',busy:false,authMode:'creer'};
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
@@ -210,7 +210,7 @@ async function loadAll(){
     const [st,shops,prods]=await Promise.all([q(sb.from('settings').select('*').eq('id',1).single()),q(sb.from('shops').select('*').order('created_at')),q(sb.from('products').select('*').order('created_at',{ascending:false}))]);
     S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];S.versements=[];S.commerciaux=[];
     const [rv,bn]=await Promise.all([safe(sb.from('reviews').select('*').order('created_at',{ascending:false}).limit(3000)),safe(sb.from('banners').select('*').order('ordre').order('created_at',{ascending:false}))]);
-    S.reviews=rv;S.banners=bn;S.best={};(await safe(sb.rpc('meilleures_ventes'))).forEach(x=>{S.best[x.pid]=x.n;});S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
+    S.reviews=rv;S.banners=bn;S.aide=await safe(sb.from('aide').select('*').order('ordre').order('created_at'));S.best={};(await safe(sb.rpc('meilleures_ventes'))).forEach(x=>{S.best[x.pid]=x.n;});S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
     if(S.user){
       const prof=await q(sb.from('profiles').select('role').eq('id',S.user.id).maybeSingle());
       S.role=prof&&prof.role==='admin'?'admin':'vendeur';
@@ -353,7 +353,7 @@ async function clientSync(){
     S.synced=true;lsSet('gbairai-favoris',favs);lsSet('gbairai-suivis',follows);lsSet('gbairai-mes-commandes',myOrders);await clientSave();pushSync();render(true);
   }catch(e){}}
 function vCompte(){
-  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>'+prefsHTML();
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>'+prefsHTML()+'<a class="btn btn-w btn-block" href="#aide">💡 Aide : comment ça marche ?</a>';
   if(!S.user){const t=ui.cTab||'creer';
     return h+'<section class="hero"><span class="ball o" style="right:-46px;top:-46px;width:100px;height:100px"></span><h2 style="color:#fff;font-size:22px;margin:0">Votre compte Gbairai</h2><p style="margin:6px 0 0">Gratuit. Retrouvez vos commandes, vos favoris et vos boutiques sur tous vos téléphones.</p></section>'+
     '<div class="seg2">'+[['creer','Créer mon compte'],['login','Me connecter']].map(x=>'<button type="button" class="chip'+(t===x[0]?' on':'')+'" data-a="cTab" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
@@ -437,7 +437,7 @@ function vAccueil(){
   storiesHTML()+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
-  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
+  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
 }
 function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
   const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
@@ -614,8 +614,8 @@ function vVendeur(){
   const tabs=[['accueil','Accueil'],['messages','Messages'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['equipe','Équipe'],['abonnement','Abonnement'],['reglages','Réglages']];
   const pending=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='envoyee').length;
   const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,equipe:vvEquipe,abonnement:vvAbonnement,reglages:vvReglages}[ui.vTab]||vvAccueil;
-  return '<div class="wrap"><div class="row between"><div class="row">'+avatar(s,44)+'<div><h1 style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><a class="btn btn-w btn-s" href="#boutique-'+esc(s.slug)+'">Voir ma page</a></div>'+
-  '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+f(s)+'</div>';
+  return '<div class="wrap"><div class="row between"><div class="row">'+avatar(s,44)+'<div><h1 style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><span class="row" style="gap:8px"><button type="button" class="helpbtn" data-a="tabHelp" aria-label="Aide sur cet écran">?</button><a class="btn btn-w btn-s" href="#boutique-'+esc(s.slug)+'">Voir ma page</a></span></div>'+
+  '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+(ui.tabHelp?tabHelpHTML(ui.vTab):'')+f(s)+'</div>';
 }
 const unreadV=()=>(S.convs||[]).reduce((a,c)=>a+(c.non_lus_vendeur||0),0);
 function vvAccueil(s){
@@ -636,7 +636,7 @@ function vvAccueil(s){
   '<div class="kpis">'+kpi(F(caP),'Ventes confirmées','','hero')+kpi(Op.length,'Commandes')+kpi((Op.length?Math.round(cf.length/Op.length*100):0)+' %','Taux de confirmation')+kpi(cf.length?F(caP/cf.length):'0 F','Panier moyen')+kpi(F(prods.reduce((a,p)=>a+p.prix*Math.max(0,p.stock),0)),'Valeur du stock')+kpi(Op.filter(o=>o.statut==='envoyee').length,'À confirmer')+(rating(s.id).n?kpi(rating(s.id).avg.toFixed(1)+' ★','Note clients ('+rating(s.id).n+' avis)'):'')+'</div>'+
   vchart(D||30,myO)+'<div class="gridf">'+rankList('Mes produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]),'Partagez votre lien pour recevoir vos premières commandes.')+
   donut('Mes commandes',[['À confirmer',Op.filter(o=>o.statut==='envoyee').length,'#FF7A1A'],['Confirmées',cf.length,'#0E7A5F'],['Annulées',Op.filter(o=>o.statut==='annulee').length,'#C9C2DA']])+'</div>';
-  return dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
+  return premiersPas(s)+dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
   (s.verification!=='verifie'?'<div class="warn"><b>'+(s.verification==='refuse'?'Vérification refusée.':'Vérification en attente.')+'</b> '+(s.verification==='refuse'&&s.motif_refus?esc(s.motif_refus)+' ':'')+'Ajoutez votre numéro de CNI dans « Réglages ». Le badge bleu rassure les clients.</div>':'<div class="note">Votre boutique est vérifiée '+VERIF+'</div>')+
   '<div class="card stack"><h2 style="font-size:16px">Mon lien à partager</h2><div class="in ell" style="display:flex;align-items:center;font-size:13px">'+esc(shopUrl(s))+'</div><div class="grid2"><button type="button" class="btn btn-v btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16,'#fff')+'Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Partager</a></div><button type="button" class="btn btn-o btn-s btn-block" data-a="shopShare">'+ic('image',16)+'Image de ma boutique pour le statut</button></div>'+
   ((low||out)?'<div class="warn">'+(low?low+' produit(s) en stock bas. ':'')+(out?out+' en rupture.':'')+' <button type="button" class="btn btn-w btn-s" data-a="vtab" data-id="stock" style="margin-left:6px">Voir le stock</button></div>':'')+
@@ -698,6 +698,55 @@ function vvCommandes(s){
   (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?recuBlock(o,s)+livBlock(o,s):'')+
   (o.statut==='envoyee'?'<div class="grid2"><button type="button" class="btn btn-g btn-s" data-a="confOrder" data-id="'+o.id+'">Confirmer la vente</button><button type="button" class="btn btn-w btn-s" data-a="cancelOrder" data-id="'+o.id+'">Annuler</button></div>':'')+'</div>').join(''):'<div class="card muted">Pas encore de commande. Partagez votre lien sur vos statuts.</div>');
 }
+/* ---------- AIDE : page, visite guidée, bouton ?, premiers pas ---------- */
+const TAB_HELP={accueil:['📊 Vos chiffres du jour et du mois.','🔔 Les messages et commandes à traiter.','✅ « Premiers pas » vous guide jusqu\'à la 1re vente.'],
+  messages:['💬 Les questions des clients posées dans l\'appli.','✍️ Touchez une discussion pour répondre.','📱 Le client peut aussi vous écrire sur WhatsApp.'],
+  produits:['➕ « Ajouter un produit » : photo, nom, prix.','✏️ Touchez un produit pour le modifier ou faire une promo.','🖼️ L\'icône image crée une image pour votre statut.'],
+  commandes:['🟠 Les nouvelles commandes arrivent ici.','✅ « Confirmer la vente » quand le client a payé : caisse et stock se mettent à jour.','🧾 Choisissez le paiement puis « Envoyer le reçu ».'],
+  clients:['👥 Les clients qui ont commandé chez vous.','📄 « Relevé du client » : ce qu\'il a acheté et ce qu\'il doit.','💬 Relancez-les sur WhatsApp quand vous avez des nouveautés.'],
+  stock:['📦 Combien il reste de chaque article.','⚠️ En rouge : bientôt fini ou en rupture.','🔄 Le stock baisse tout seul à chaque vente confirmée.'],
+  caisse:['💰 Chaque vente confirmée s\'ajoute toute seule ici.','🧾 Ajoutez vos dépenses pour voir votre vrai bénéfice.','📄 « Relevé du mois » fait un PDF à garder ou à envoyer.'],
+  equipe:['📍 Vos magasins et stands : placez-les sur la carte.','👥 Vos commerciaux : chacun a son lien et sa commission.','🏆 Le podium du mois motive l\'équipe.'],
+  abonnement:['⭐ Passez Pro pour des produits illimités.','📢 Mise en vedette et bannière pour être vu en premier.','💳 Payez par Mobile Money, l\'admin valide.'],
+  reglages:['🎨 Couleur et couverture de votre boutique.','🌙 Mode sombre et petits sons.','🔑 Vos informations et votre mot de passe.']};
+function tabHelpHTML(tab){const L=TAB_HELP[tab]||TAB_HELP.accueil;
+  return '<div class="helpcard"><div class="row between"><b>💡 À quoi sert cet écran ?</b><button type="button" class="linkbtn" data-a="tabHelp" aria-label="Fermer">✕</button></div>'+L.map(x=>'<div class="small">'+esc(x)+'</div>').join('')+'<div class="row between"><a class="small" style="font-weight:700" href="#aide">Voir tous les guides ›</a><button type="button" class="linkbtn" data-a="tour" data-id="vendeur">▶ Revoir la visite</button></div></div>';}
+function ytEmbed(u){const m=String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);return m?'https://www.youtube-nocookie.com/embed/'+m[1]:null;}
+function vAide(){const role=myShop()?'vendeur':'client',pub=ui.aidePub||role,qq=ui.aideQ.trim().toLowerCase(),all=(S.aide||[]).filter(x=>x.actif!==false);
+  const match=x=>!qq||(x.titre+' '+(x.etapes||[]).join(' ')).toLowerCase().includes(qq);
+  const G=all.filter(x=>x.type==='guide'&&(qq||x.public===pub)&&match(x)),V=all.filter(x=>x.type==='video'&&(qq||x.public===pub)&&match(x));
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Aide</h1></div>'+
+  '<label class="search" style="margin:0">'+ic('search',20,'#6B5B8C')+'<input type="search" placeholder="Comment… (ex. : envoyer un reçu)" value="'+esc(ui.aideQ)+'" data-i="aideQ" aria-label="Chercher dans l\'aide"></label>'+
+  '<div class="seg2">'+[['vendeur','Je vends'],['client','J\'achète']].map(x=>'<button type="button" class="chip'+(pub===x[0]?' on':'')+'" data-a="aidePub" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+  '<button type="button" class="btn btn-v btn-block" data-a="tour" data-id="'+pub+'">▶ Visite guidée ('+(pub==='vendeur'?'vendeuse':'client')+')</button>';
+  h+=G.length?'<div class="card" style="padding:4px 14px">'+G.map(x=>{const on=ui.aideOpen===x.id||!!qq;return '<div class="guide'+(on?' on':'')+'"><button type="button" class="gd" data-a="aideOpen" data-id="'+x.id+'"><span class="gi">'+esc(x.icone||'💡')+'</span><span style="flex:1;min-width:0;text-align:left"><b>'+esc(x.titre)+'</b><span class="small muted" style="display:block">'+(x.etapes||[]).length+' étapes</span></span><span class="chev">›</span></button>'+(on?'<ol class="gsteps">'+(x.etapes||[]).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ol>':'')+'</div>';}).join('')+'</div>':'<div class="card muted">'+(all.length?'Rien trouvé. Essayez un autre mot.':'Les guides arrivent bientôt.')+'</div>';
+  if(V.length)h+='<div class="sec-title"><h2>Vidéos</h2><span class="cnt-pill">'+V.length+'</span></div>'+V.map(x=>{const yt=ytEmbed(x.video_url);return '<div class="card stack" style="gap:8px"><b>'+esc(x.icone||'🎬')+' '+esc(x.titre)+(x.duree?' <span class="small muted">· '+esc(x.duree)+'</span>':'')+'</b>'+(yt?'<div class="vidbox"><iframe src="'+esc(yt)+'" title="'+esc(x.titre)+'" loading="lazy" allowfullscreen></iframe></div>':/\.(mp4|webm)(\?|$)/i.test(x.video_url)?'<video class="vidbox" src="'+esc(x.video_url)+'" controls preload="metadata"></video>':'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="'+esc(x.video_url)+'">▶ Regarder la vidéo</a>')+'</div>';}).join('');
+  h+='<a class="btn btn-g btn-block" target="_blank" rel="noopener" href="https://wa.me/'+waNum(S.settings.support_whatsapp||'')+'?text='+encodeURIComponent('Bonjour, j\'ai une question sur '+(S.settings.nom||'Gbairai Market')+' : ')+'">'+ic('wa',18,'#fff')+'Je n\'ai pas trouvé : écrire au support</a>';
+  return h+'</div>';}
+function aAide(){const L=S.aide||[],ed=ui.aEditAide&&ui.aEditAide!=='new'?L.find(x=>x.id===ui.aEditAide):null,show=ui.aEditAide==='new'||ed,x=ed||{type:'guide',public:'vendeur',icone:'💡',etapes:[],ordre:L.length+1};
+  let h='<div class="note">Ces guides et vidéos s\'affichent dans la page <b>Aide</b>. Pour une vidéo : mettez-la sur YouTube (ou TikTok, Facebook) et collez le lien.</div>';
+  h+=show?'<form class="card stack" data-f="aide"'+(ed?' data-id="'+ed.id+'"':'')+' style="max-width:640px"><h2 style="font-size:17px">'+(ed?'Modifier':'Ajouter')+'</h2><div class="grid2"><label class="lbl">Type<select class="in" name="type"><option value="guide"'+(x.type==='guide'?' selected':'')+'>Guide en étapes</option><option value="video"'+(x.type==='video'?' selected':'')+'>Vidéo</option></select></label><label class="lbl">Pour<select class="in" name="public"><option value="vendeur"'+(x.public==='vendeur'?' selected':'')+'>Vendeuses</option><option value="client"'+(x.public==='client'?' selected':'')+'>Clients</option></select></label></div><div class="row" style="gap:8px"><label class="lbl" style="width:80px">Icône<input class="in" name="icone" maxlength="8" value="'+esc(x.icone)+'"></label><label class="lbl" style="flex:1">Titre<input class="in" name="titre" required maxlength="100" value="'+esc(x.titre||'')+'"></label></div><label class="lbl">Étapes (une par ligne)<textarea class="in" name="etapes" rows="5" style="height:auto;padding:10px 14px">'+esc((x.etapes||[]).join('\n'))+'</textarea></label><div class="grid2"><label class="lbl">Lien de la vidéo<input class="in" name="video_url" maxlength="400" value="'+esc(x.video_url||'')+'" placeholder="https://youtube.com/…"></label><label class="lbl">Durée<input class="in" name="duree" maxlength="10" value="'+esc(x.duree||'')+'" placeholder="0:45"></label></div><label class="lbl">Ordre<input class="in" name="ordre" inputmode="numeric" value="'+esc(String(x.ordre||0))+'"></label><div class="grid2"><button type="button" class="btn btn-w" data-a="editAide" data-id="">Annuler</button><button class="btn btn-v" type="submit">Enregistrer</button></div></form>':'<button type="button" class="btn btn-v" data-a="editAide" data-id="new" style="max-width:320px">+ Ajouter un guide ou une vidéo</button>';
+  h+=['vendeur','client'].map(p=>{const l=L.filter(a=>a.public===p);return '<div class="sec-title"><h2>'+(p==='vendeur'?'Pour les vendeuses':'Pour les clients')+'</h2><span class="cnt-pill">'+l.length+'</span></div>'+(l.length?'<div class="card" style="padding:4px 14px;max-width:760px">'+l.map(a=>'<div class="row between" style="padding:10px 0;border-top:1px solid var(--line);'+(a.actif===false?'opacity:.5':'')+'"><span style="min-width:0"><b>'+esc(a.icone)+' '+esc(a.titre)+'</b><span class="small muted" style="display:block">'+(a.type==='video'?'🎬 Vidéo':(a.etapes||[]).length+' étapes')+(a.actif===false?' · masqué':'')+'</span></span><span class="row" style="gap:6px"><button type="button" class="btn btn-w btn-s" data-a="editAide" data-id="'+a.id+'">Modifier</button><button type="button" class="btn btn-w btn-s" data-a="aideActif" data-id="'+a.id+'" data-v="'+(a.actif===false?'1':'0')+'">'+(a.actif===false?'Afficher':'Masquer')+'</button><button type="button" class="btn btn-r btn-s" data-a="delAide" data-id="'+a.id+'">'+ic('trash',14)+'</button></span></div>').join('')+'</div>':'<div class="card muted" style="max-width:760px">Rien pour l\'instant.</div>');}).join('');
+  return h;}
+/* Visite guidée */
+const TOURS={client:[['.stories','📸 Les nouveautés','Touchez un rond pour voir les nouveaux articles des boutiques, comme un statut WhatsApp.'],['#q','🔍 Chercher','Écrivez ce que vous cherchez : robe, iPhone, nom d\'une boutique…'],['.chips','📍 Votre ville','Choisissez votre ville pour voir les boutiques près de vous.'],['.pcard [data-a="add"]','➕ Ajouter au panier','Touchez « + » pour mettre un article dans le panier.'],['.nav a[href="#panier"]','🛍 Commander','Dans le panier, touchez « Commander sur WhatsApp » : le message part tout prêt chez le vendeur.'],['.icon-btn[href="#commandes"]','🚚 Suivre ma commande','Ici, vous voyez où en est votre commande.'],['.aidebar','💡 Besoin d\'aide ?','Tous les guides et vidéos sont ici.']],
+  vendeur:[['.tab[data-id="produits"]','📸 Vos produits','Ajoutez vos articles avec une photo et un prix.'],['a[href^="#boutique-"]','🔗 Votre page','Votre boutique en ligne. Partagez son lien sur vos statuts.'],['.tab[data-id="commandes"]','🛒 Les commandes','Les commandes des clients arrivent ici. Confirmez quand le client a payé.'],['.tab[data-id="caisse"]','💰 La caisse','Vos recettes, vos dépenses et votre relevé du mois.'],['.tab[data-id="equipe"]','👥 Votre équipe','Vos points de vente et vos commerciaux.'],['.helpbtn','💡 Le bouton ?','Il explique chaque écran. Touchez-le si vous êtes perdue.']]};
+let TOUR=null;
+function startTour(kind){const h=kind==='vendeur'?'vendeur':'accueil';if((location.hash||'#accueil').slice(1)!==h&&!(h==='accueil'&&!location.hash)){TOUR={kind,i:-1,pending:true};location.hash=h;setTimeout(()=>{if(TOUR&&TOUR.pending){TOUR.pending=false;tourStep(1);}},700);return;}TOUR={kind,i:-1};tourStep(1);}
+function tourStep(d){if(!TOUR)return;const L=TOURS[TOUR.kind];let el=null;
+  while(true){TOUR.i+=d;if(TOUR.i>=L.length){endTour(true);return;}el=document.querySelector(L[TOUR.i][0]);if(el&&el.getClientRects().length)break;}
+  el.scrollIntoView({block:'center'});setTimeout(()=>{if(!TOUR)return;const r=el.getBoundingClientRect(),st=L[TOUR.i],below=r.top<innerHeight/2,pad=6;
+    const tipTop=below?Math.min(innerHeight-200,r.bottom+16):Math.max(12,r.top-190);
+    document.getElementById('layer').innerHTML='<div class="tourv"><div class="tspot" style="left:'+(r.left-pad)+'px;top:'+(r.top-pad)+'px;width:'+(r.width+pad*2)+'px;height:'+(r.height+pad*2)+'px"></div><div class="ttip" style="top:'+tipTop+'px"><div class="small muted" style="font-weight:700">ÉTAPE '+(TOUR.i+1)+' SUR '+L.length+'</div><b>'+esc(st[1])+'</b><p>'+esc(st[2])+'</p><div class="row between"><button type="button" class="linkbtn" data-a="tourEnd">Passer</button><button type="button" class="btn btn-v btn-s" data-a="tourNext">'+(TOUR.i===L.length-1?'Terminer ✓':'Suivant ›')+'</button></div></div></div>';},250);}
+function endTour(done){if(TOUR)lsSet('gbairai-tour-'+TOUR.kind,1);TOUR=null;document.getElementById('layer').innerHTML='';if(done)toast('Bravo, vous connaissez l\'essentiel 👍');}
+function autoTour(h){if(TOUR||document.getElementById('intro')||document.querySelector('#layer>*'))return;
+  if(TOUR===null&&h==='vendeur'&&myShop()&&!isAdmin()&&!lsGet('gbairai-tour-vendeur',0)){TOUR={kind:'vendeur',i:-1};tourStep(1);}
+  else if((h==='accueil')&&!S.user&&!lsGet('gbairai-tour-client',0)&&lsGet('gbairai-intro',0)){TOUR={kind:'client',i:-1};tourStep(1);}}
+/* Premiers pas */
+function premiersPas(s){if(lsGet('gbairai-pp-'+s.id,0))return '';const P=shopProducts(s.id);
+  const L=[['Créer ma boutique',true,''],['Ajouter mon logo',!!s.logo,'<button type="button" class="chip chip-s" data-a="vtab" data-id="reglages">Faire ›</button>'],['Ajouter 3 produits',P.length>=3,'<button type="button" class="chip chip-s" data-a="vtab" data-id="produits">Faire ›</button>'],['Partager mon lien sur mon statut',!!lsGet('gbairai-partage-'+s.id,0),'<button type="button" class="chip chip-s" data-a="ppShare">Copier ›</button>'],['Recevoir ma 1re commande',S.orders.some(o=>o.shop_id===s.id),'']];
+  const n=L.filter(x=>x[1]).length;if(n===L.length)return '';const pc=Math.round(n/L.length*100);
+  return '<section class="card stack pp"><div class="row between"><b>🚀 Premiers pas · boutique prête à '+pc+' %</b><button type="button" class="linkbtn" data-a="ppHide" aria-label="Masquer">✕</button></div><div class="bar"><i style="width:'+pc+'%"></i></div>'+L.map(x=>'<div class="ppl'+(x[1]?' ok':'')+'"><span class="bx">'+(x[1]?'✓':'')+'</span><span style="flex:1">'+esc(x[0])+'</span>'+(x[1]?'':x[2])+'</div>').join('')+'</section>';}
 /* ---------- PLUS BEAU : stories, badges, zoom, panier, thème, QR, carte, podium, fêtes ---------- */
 function storyList(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id)),m={},vu=lsGet('gbairai-stories',{});
   S.products.forEach(p=>{if(p.visible&&p.stock>0&&ok.has(p.shop_id))(m[p.shop_id]=m[p.shop_id]||[]).push(p);});
@@ -963,11 +1012,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['aide','Aide'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -1109,7 +1158,7 @@ function aNotif(){const st=S.settings,pub=st.vapid_public||'';
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h==='aide'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -1127,6 +1176,7 @@ function render(keep){
   else if(h.startsWith('chat-'))html=vChat(decodeURIComponent(h.slice(5)));
   else if(h==='discussions')html=vDiscussions();
   else if(h==='compte')html=vCompte();
+  else if(h==='aide')html=vAide();
   else if(h==='panier')html=vPanier();
   else if(h==='favoris')html=vFavoris();
   else if(h.startsWith('suivi-'))html=vSuivi(h.slice(6));
@@ -1137,9 +1187,9 @@ function render(keep){
   else if(h==='vendeur')html=isAdmin()?vAdmin():vVendeur();
   else if(h==='admin')html=vAdmin();
   else html=vAccueil();
-  if(h.startsWith('produit-')||h==='panier'||h==='compte'||h.startsWith('suivi-')||h.startsWith('recu-')||h.startsWith('commercial-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
+  if(h.startsWith('produit-')||h==='panier'||h==='compte'||h==='aide'||h.startsWith('suivi-')||h.startsWith('recu-')||h.startsWith('commercial-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
-  const y=window.scrollY;app.innerHTML=html+nav(h);
+  const y=window.scrollY;app.innerHTML=html+nav(h);setTimeout(()=>autoTour(h),900);
   if(keep&&lastHash===h)window.scrollTo(0,y);else window.scrollTo(0,0);lastHash=h;
 }
 let toastT;
@@ -1205,7 +1255,7 @@ const A={
   orderTg:t=>{copy(t.dataset.text,'Message copié : collez-le sur Telegram');logOrder(t.dataset.shop,'telegram',null,t.dataset.oid);},
   fav:t=>{const id=t.dataset.id;favs=isFav(id)?favs.filter(x=>x!==id):[id].concat(favs);lsSet('gbairai-favoris',favs);toast(isFav(id)?'Ajouté aux favoris':'Retiré des favoris');render(true);},
   galGo:t=>{const g=document.getElementById('gal');if(g)g.scrollTo({left:g.clientWidth*(+t.dataset.i),behavior:'smooth'});},
-  copy:t=>copy(t.dataset.text),
+  copy:t=>{copy(t.dataset.text);const m=myShop();if(m&&String(t.dataset.text||'').includes(m.slug))lsSet('gbairai-partage-'+m.id,1);},
   share:t=>showShare(t.dataset.id),
   closeModal:()=>{document.getElementById('layer').innerHTML='';},
   convSignal:t=>showConvSig(t.dataset.id,false),
@@ -1228,7 +1278,7 @@ const A={
       ui.vapid={pub,priv:j.d};return act(()=>q(sb.from('settings').update({vapid_public:pub}).eq('id',1)),'Clés créées');}).catch(()=>toast('Impossible de créer les clés'));},
   authMode:t=>{ui.authMode=t.dataset.id;render(true);},
   logout:()=>act(async()=>{await sb.auth.signOut();S.synced=false;S.cnom='';ui.vTab='accueil';ui.adminShop=null;},'Déconnecté'),
-  vtab:t=>{ui.vTab=t.dataset.id;ui.rel=null;ui.cli=null;ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
+  vtab:t=>{ui.tabHelp=false;ui.vTab=t.dataset.id;ui.rel=null;ui.cli=null;ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
   newProd:()=>{const s=myShop();if(s.formule!=='pro'&&shopProducts(s.id).length>=S.settings.limite_gratuit){ui.vTab='produits';render();toast('Limite gratuite atteinte ('+S.settings.limite_gratuit+' produits). Passez Pro.');return;}ui.vTab='produits';ui.edit='new';ui.newColor=Math.floor(Math.random()*6);ui.photo=undefined;ui.extras=undefined;render();},
   editProd:t=>{ui.edit=t.dataset.id;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
   cancelEdit:()=>{ui.edit=null;ui.photo=undefined;ui.extras=undefined;ui.confirm=null;render();},
@@ -1242,6 +1292,17 @@ const A={
   stock:t=>{const p=prodById(t.dataset.id);const v=Math.max(0,p.stock+(+t.dataset.d));p.stock=v;render(true);act(()=>q(sb.from('products').update({stock:v}).eq('id',p.id)));},
   periode:t=>{ui.caissePeriode=t.dataset.id;render(true);},
   releve:t=>{ui.rel=t.dataset.id;render(true);},
+  tabHelp:()=>{ui.tabHelp=!ui.tabHelp;render(true);},
+  aidePub:t=>{ui.aidePub=t.dataset.id;ui.aideOpen=null;render(true);},
+  aideOpen:t=>{ui.aideOpen=ui.aideOpen===t.dataset.id?null:t.dataset.id;render(true);},
+  tour:t=>startTour(t.dataset.id),
+  tourNext:()=>tourStep(1),
+  tourEnd:()=>endTour(),
+  ppHide:()=>{const m=myShop();if(m)lsSet('gbairai-pp-'+m.id,1);render(true);},
+  ppShare:()=>{const m=myShop();if(!m)return;copy(shopUrl(m),'Lien copié : collez-le sur votre statut');lsSet('gbairai-partage-'+m.id,1);render(true);},
+  editAide:t=>{ui.aEditAide=t.dataset.id;render(true);},
+  delAide:t=>act(()=>q(sb.from('aide').delete().eq('id',t.dataset.id)),'Supprimé'),
+  aideActif:t=>act(()=>q(sb.from('aide').update({actif:t.dataset.v==='1'}).eq('id',t.dataset.id))),
   story:t=>{const L=storyList();ui.story={list:L,i:+t.dataset.i,j:0};storyShow();},
   storyTap:(t,e)=>{if(!ui.story)return;if(e.clientX<window.innerWidth/3)storyPrev();else storyNext();},
   storyClose:()=>{storyStop();document.getElementById('layer').innerHTML='';},
@@ -1316,7 +1377,7 @@ document.addEventListener('click',e=>{
   const f=A[t.dataset.a];if(f)f(t,e);
 });
 /* Code image obligatoire avant toute suppression */
-const DEL=new Set(['delProd','delVers','delPoint','delCm','delTx','bnDel','blDel','rvDel','delShop','delCat','delQ']);
+const DEL=new Set(['delAide','delProd','delVers','delPoint','delCm','delTx','bnDel','blDel','rvDel','delShop','delCat','delQ']);
 let delPending=null,delCode='';
 function delDraw(){const cv=document.getElementById('delcv');if(!cv)return;const A_='ABCDEFGHJKMNPRSTUVWXYZ23456789';delCode='';for(let i=0;i<5;i++)delCode+=A_[Math.floor(Math.random()*A_.length)];
   const x=cv.getContext('2d'),w=cv.width,h=cv.height,g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#EDE7FB');g.addColorStop(1,'#FFE9D6');x.fillStyle=g;x.fillRect(0,0,w,h);
@@ -1339,6 +1400,7 @@ document.addEventListener('input',e=>{
   const ck=e.target.dataset&&e.target.dataset.client;if(ck){client[ck]=e.target.value;lsSet('gbairai-client',client);refreshOrderLinks();return;}
   const k=e.target.dataset&&e.target.dataset.i;if(!k)return;ui[k]=e.target.value;
   if(k==='q')document.getElementById('results').innerHTML=results();
+  else if(k==='aideQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="aideQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aQ'){const pos=e.target.selectionStart;render(true);const el=document.getElementById('aq');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
 });
 let formCache=null;
@@ -1372,6 +1434,9 @@ async function createShop(d){
   await q(sb.from('shop_private').insert({shop_id:ins.id}));
 }
 const FORMS={
+  aide:(d,f)=>act(async()=>{const row={type:d.type==='video'?'video':'guide',public:d.public==='client'?'client':'vendeur',titre:String(d.titre||'').trim().slice(0,100),icone:String(d.icone||'💡').trim().slice(0,8)||'💡',etapes:String(d.etapes||'').split('\n').map(x=>x.trim()).filter(Boolean).slice(0,15),video_url:String(d.video_url||'').trim().slice(0,400),duree:String(d.duree||'').trim().slice(0,10),ordre:Math.round(n0(d.ordre))};
+    if(!row.titre)throw new Error('Indiquez un titre.');if(row.type==='video'&&!/^https?:\/\//.test(row.video_url))throw new Error('Collez le lien de la vidéo (YouTube, TikTok, Facebook…).');
+    const id=f.dataset.id;await q(id?sb.from('aide').update(row).eq('id',id):sb.from('aide').insert(row));ui.aEditAide=null;},'Aide enregistrée'),
   fetes:(d,f)=>act(async()=>{const o={off:[],dates:{}};FETES.forEach(x=>{if(!d['on_'+x.id])o.off.push(x.id);const a=d['du_'+x.id],b=d['au_'+x.id],c=feteNext(x.id);if(a&&b&&c&&(a!==c[0]||b!==c[1]))o.dates[x.id]=[a,b];});await q(sb.from('settings').update({fetes:o}).eq('id',1));},'Fêtes enregistrées'),
   versement:(d,f)=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('versements').insert({shop_id:myShop().id,client_tel:f.dataset.tel,montant:m,mode:d.mode||'especes',note:String(d.note||'').trim().slice(0,120),date:today()}));},'Versement enregistré'),
   point:d=>act(async()=>{const s=myShop(),pr=!!d.principal;if(pr)await safe(sb.from('points_vente').update({principal:false}).eq('shop_id',s.id));await q(sb.from('points_vente').insert(Object.assign({shop_id:s.id,nom:String(d.nom).trim().slice(0,60),adresse:String(d.adresse||'').trim().slice(0,160),horaires:String(d.horaires||'').trim().slice(0,60),responsable:String(d.responsable||'').trim().slice(0,60),tel:String(d.tel||'').trim().slice(0,30),principal:pr},d.lat&&d.lng?{lat:+d.lat,lng:+d.lng}:{})));},'Point de vente ajouté'),
