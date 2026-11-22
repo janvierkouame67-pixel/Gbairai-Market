@@ -622,4 +622,4 @@ a.badge{text-decoration:none}
 @media (prefers-reduced-motion:reduce){.voix.on .micbtn{animation:none}}
 
 /* Onglets : sur ordinateur, tous visibles (retour à la ligne) */
-@media (min-width:700px){.tabs{flex-wrap:wrap;overflow-x:visible}.tabs>button{flex:0 0 auto}}
+@media (min-width:700px){.tabs{flex-wrap:wrap;overflow-x:visible}.tabs>button{flex:1 1 auto}}
