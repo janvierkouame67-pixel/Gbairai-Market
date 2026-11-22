@@ -1,6 +1,6 @@
 // Gbairai Market : permet l'installation et un démarrage rapide.
 // Le site est toujours chargé depuis Internet d'abord ; la copie sert seulement hors connexion.
-const CACHE = 'gbairai-v36';
+const CACHE = 'gbairai-v37';
 const FICHIERS = ['/', '/index.html', '/styles.css', '/app.js', '/statut.js', '/voix.js', '/config.js', '/install.js', '/intro.js', '/bulle.js', '/icons/logo.svg', '/icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FICHIERS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });

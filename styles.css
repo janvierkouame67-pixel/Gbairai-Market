@@ -677,3 +677,14 @@ a.badge{text-decoration:none}
   .a3d-ph{--w:190px;--h:250px;--z:440px}
 }
 @media (prefers-reduced-motion:reduce){.a3d-ring,.a3d-orb,.auth3d .card,.auth3d form .btn-v:after{animation:none}}
+
+/* Petit bouton « Télécharger » (en bas à gauche, à l'opposé de la bulle d'aide) */
+.dl-btn{position:fixed;left:max(16px,calc(50% - 224px));bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 12px;border:0;border-radius:99px;
+ background:linear-gradient(180deg,#FF9A4A,#FF7A1A);color:#fff;font:700 13px/1 var(--body,Inter,sans-serif);cursor:pointer;box-shadow:0 4px 0 #C2530A,0 12px 22px -6px rgba(255,122,26,.55);animation:dlIn .4s ease-out}
+.dl-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #C2530A,0 6px 12px -6px rgba(255,122,26,.55)}
+.dl-btn svg{animation:dlBob 2.4s ease-in-out infinite}
+.dl-btn[hidden]{display:none}
+@keyframes dlIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes dlBob{0%,70%,100%{transform:translateY(0)}80%{transform:translateY(3px)}90%{transform:translateY(-1px)}}
+@media (min-width:900px){.dl-btn{left:32px;bottom:28px}}
+@media (prefers-reduced-motion:reduce){.dl-btn,.dl-btn svg{animation:none}}
