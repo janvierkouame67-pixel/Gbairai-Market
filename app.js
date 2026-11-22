@@ -237,11 +237,27 @@ async function loadAll(){
   }catch(e){S.error=errMsg(e);}
   S.loaded=true;
   ping();
+  if(S.user)stCx();
   if(S.user&&!S.synced&&!S.syncing){S.syncing=true;clientSync().finally(()=>{S.syncing=false;});}
   if(!S.user){S.synced=false;S.cnom='';}
   cart=cart.filter(l=>prodById(l.pid));saveCart();
   document.title=S.settings.nom||'Gbairai Market';
 }
+/* ---------- STATISTIQUES : visites, recherches, clics, paniers, connexions (→ /api/stat) ---------- */
+const STQ=[];let stT=null,stLastH=null,stQ='',stQT=null;
+function stVid(){let v=lsGet('gbairai-vid','');if(!v||typeof v!=='string'){v=uuid().replace(/-/g,'').slice(0,20);lsSet('gbairai-vid',v);}return v;}
+function st(k,o){if(k!=='connexion'&&k!=='echec'&&S.user&&isAdmin())return;STQ.push(Object.assign({k:k},o||{}));if(k==='connexion'||k==='echec'){clearTimeout(stT);stT=setTimeout(stFlush,50);}else if(!stT)stT=setTimeout(stFlush,4000);}
+function stFlush(){clearTimeout(stT);stT=null;if(!STQ.length)return;const ev=STQ.splice(0,30),h={'Content-Type':'application/json'};if(S.token&&ev.some(e=>e.k==='connexion'))h.Authorization='Bearer '+S.token;
+  try{fetch('/api/stat',{method:'POST',headers:h,body:JSON.stringify({v:stVid(),ev:ev}),keepalive:true}).catch(()=>{});}catch(e){}}
+function stRouteShop(){const h=(location.hash||'').slice(1);if(h.startsWith('boutique-'))return S.shops.find(x=>x.slug===decodeURIComponent(h.slice(9)));if(h.startsWith('produit-')){const p=prodById(h.slice(8));return p?shopById(p.shop_id):null;}return null;}
+function stPage(h){if(h===stLastH)return;stLastH=h;let s=null,p=null;
+  if(h.startsWith('boutique-')){const x=stRouteShop();s=x?x.id:null;}else if(h.startsWith('produit-')){const x=prodById(h.slice(8));if(x){p=x.id;s=x.shop_id;}}
+  st('page',{s:s,p:p});}
+function stCx(){if(!S.user)return;const k=S.user.id+'|'+today();if(lsGet('gbairai-cx','')===k)return;lsSet('gbairai-cx',k);st('connexion');}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stFlush();});
+document.addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a)return;const href=a.getAttribute('href')||'';if(!/(wa\.me|t\.me)\//.test(href))return;
+  const s=(a.dataset.shop&&shopById(a.dataset.shop))||stRouteShop();if(!s)return;
+  if(/wa\.me\//.test(href)){if(s.whatsapp&&href.indexOf('wa.me/'+waNum(s.whatsapp))>=0)st('wa',{s:s.id});}else if(s.telegram)st('tg',{s:s.id});},true);
 async function act(fn,okMsg){
   if(ui.busy)return;ui.busy=true;
   try{await fn();if(okMsg)toast(okMsg);await loadAll();render(true);}
@@ -323,7 +339,7 @@ async function pushEnable(){
     lsSet('gbairai-push',1);await pushSync(sub);toast('Alertes activées 🔔');return true;
   }catch(e){toast('Impossible d\'activer les alertes sur ce téléphone');return false;}}
 async function pushSync(sub){try{if(!pushOn())return;const reg=await navigator.serviceWorker.ready;sub=sub||await reg.pushManager.getSubscription();if(!sub)return;const j=sub.toJSON();
-  await sb.rpc('push_save',{ep:j.endpoint,k:j.keys.p256dh,a:j.keys.auth,sh:follows.filter(isUuid).slice(0,200),ord:myOrders.map(o=>o.id).filter(isUuid).slice(0,50),cv:Object.values(convMap).filter(isUuid).slice(0,50)});}catch(e){}}
+  await sb.rpc('push_save',{ep:j.endpoint,k:j.keys.p256dh,a:j.keys.auth,sh:follows.filter(isUuid).slice(0,200),ord:myOrders.map(o=>o.id).filter(isUuid).slice(0,50),cv:Object.values(convMap).filter(isUuid).slice(0,50)});if(isAdmin())sb.rpc('push_admin',{ep:j.endpoint}).then(()=>{},()=>{});}catch(e){}}
 async function pushDisable(){try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription();if(sub){await sb.rpc('push_remove',{ep:sub.endpoint});await sub.unsubscribe();}}catch(e){}lsSet('gbairai-push',0);toast('Alertes désactivées');}
 function notify(o){if(!S.token)return;try{fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
 function setFollow(id,on){follows=on?[id].concat(follows.filter(x=>x!==id)):follows.filter(x=>x!==id);lsSet('gbairai-suivis',follows);if(on){seen[id]=new Date().toISOString();lsSet('gbairai-vus',seen);}pushSync();}
@@ -457,6 +473,7 @@ function results(){
   const shops=S.shops.filter(s=>ok(s)&&(!ui.cat||s.categorie===ui.cat||shopProducts(s.id).some(p=>p.categorie===ui.cat))&&(!qq||(s.nom+' '+s.quartier+' '+villeOf(s)).toLowerCase().includes(qq)))
     .sort((a,b)=>(b.vedette-a.vedette)||((b.verification==='verifie')-(a.verification==='verifie')));
   const prods=S.products.filter(p=>{const s=shopById(p.shop_id);return s&&ok(s)&&p.visible&&p.stock>0&&(!ui.cat||p.categorie===ui.cat)&&(!qq||(p.nom+' '+(p.description||'')+' '+s.nom+' '+(p.type||'')+' '+catName(p.categorie)).toLowerCase().includes(qq));});
+  ui.qN=shops.length+prods.length;
   let h='<div class="sec-title"><h2>Boutiques</h2><span class="cnt-pill">'+shops.length+'</span></div>';
   h+=shops.length?'<div class="shops">'+shops.map(shopCard).join('')+'</div>':'<p class="muted">Aucune boutique pour l\'instant.'+(S.shops.length?'':' <a href="#vendeur">Créez la première !</a>')+'</p>';
   h+='<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>';
@@ -1094,11 +1111,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['contacts','💬 Contacts'],['verifs','✅ Vérifications'+((()=>{const n=S.shops.filter(s=>s.verification==='attente'&&(S.priv[s.id]||{}).cni).length;return n?' ('+n+')':'';})())],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['stats','📊 Statistiques'],['contacts','💬 Contacts'],['verifs','✅ Vérifications'+((()=>{const n=S.shops.filter(s=>s.verification==='attente'&&(S.priv[s.id]||{}).cni).length;return n?' ('+n+')':'';})())],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,contacts:aContacts,verifs:aVerifs,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,stats:aStats,contacts:aContacts,verifs:aVerifs,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -1135,6 +1152,73 @@ function aTableau(){
   rankList('Produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]))+
   '<section class="card stack"><h2 style="font-size:17px">Vendeurs par ville</h2>'+bars(byQ,mx)+'</section><section class="card stack"><h2 style="font-size:17px">Produits par catégorie</h2>'+bars(byC,mc)+'</section>'+
   '<section class="card stack"><h2 style="font-size:17px">À vérifier</h2>'+(wait.map(s=>'<div class="row between"><span class="row">'+avatar(s,34)+esc(s.nom)+'</span><button type="button" class="btn btn-g btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir</button></div>').join('')||'<p class="muted" style="margin:0">Rien en attente.</p>')+'</section></div>';
+}
+/* ---------- ADMIN : STATISTIQUES ---------- */
+const ST_PER=[['1','Aujourd\'hui'],['7','7 jours'],['30','30 jours'],['90','90 jours']];
+function stLoad(){const d=ui.stD||7;ui.stats={d:d,loading:true};sb.rpc('stats_admin',{jours:d}).then(r=>{ui.stats={d:d,data:r.error?null:r.data,err:r.error?errMsg(r.error):null};render(true);},()=>{ui.stats={d:d,err:'Pas de connexion internet.'};render(true);});}
+function telFmt(t){t=String(t||'').replace(/\D/g,'');if(t.length===13&&t.startsWith('225'))t=t.slice(3);return t.replace(/(\d{2})(?=\d)/g,'$1 ');}
+function stNum(n){return String(Math.round(n||0)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
+function stCard(title,body,sub){return '<section class="card stack"><div class="row between wrapx" style="gap:6px"><h2 style="font-size:17px">'+title+'</h2>'+(sub?'<span class="small muted">'+sub+'</span>':'')+'</div>'+body+'</section>';}
+function stMeters(rows){const m=Math.max(1,...rows.map(r=>r[1]));return rows.length?rows.map(r=>'<div class="row small"><span class="ell" style="width:120px">'+r[0]+'</span><span class="bar"><span style="width:'+(r[1]/m*100)+'%"></span></span><b class="num" style="min-width:34px;text-align:right">'+r[2]+'</b></div>').join(''):'<p class="muted" style="margin:0">Pas encore de données.</p>';}
+function aDormants(){const lim=Date.now()-7*DAY,L=S.shops.filter(s=>s.statut==='actif'&&new Date(s.vu_le||s.created_at).getTime()<lim).sort((a,b)=>new Date(a.vu_le||a.created_at)-new Date(b.vu_le||b.created_at));
+  const show=ui.stDormAll?L:L.slice(0,8),site=location.origin+'/#vendeur';
+  const msg=s=>'Bonjour '+(s.gerant||s.nom)+' 👋 Ici l\'équipe '+(S.settings.nom||'Gbairai Market')+'. Votre boutique « '+s.nom+' » vous attend : des clients passent la voir. Ajoutez vos nouveaux articles et vos promos ici : '+site;
+  return stCard('😴 Vendeurs endormis','<p class="small muted" style="margin:0">Pas connectés depuis plus de 7 jours. Un petit message les fait souvent revenir.</p>'+(L.length?show.map(s=>'<div class="row between rank" style="gap:10px"><span class="row" style="gap:10px;min-width:0">'+avatar(s,34)+'<span class="stack" style="gap:0;min-width:0"><b class="ell">'+esc(s.nom)+'</b><span class="small muted">'+(s.vu_le?'Vu '+ago(s.vu_le):'Jamais connecté')+' · '+esc(place(s))+'</span></span></span>'+(s.whatsapp?'<a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'?text='+encodeURIComponent(msg(s))+'">Relancer</a>':'')+'</div>').join('')+(L.length>8?'<button type="button" class="btn btn-w btn-s" data-a="stDormAll">'+(ui.stDormAll?'Voir moins':'Voir les '+L.length)+'</button>':''):'<p class="muted" style="margin:0">Tous vos vendeurs sont actifs. 👏</p>'),L.length?L.length+' vendeur'+(L.length>1?'s':''):'');}
+function aStats(){
+  const D=ui.stD||7;if(!ui.stats||ui.stats.d!==D)stLoad();
+  const so=ui.stats||{},x=so.data;
+  let h='<div class="row between wrapx" style="gap:10px"><h2 style="font-size:19px">Statistiques du site</h2><div class="row wrapx" style="gap:6px">'+ST_PER.map(p=>'<button type="button" class="chip'+(String(D)===p[0]?' on':'')+'" data-a="stPer" data-id="'+p[0]+'">'+p[1]+'</button>').join('')+'<button type="button" class="chip" data-a="stReload" aria-label="Actualiser">↻ Actualiser</button></div></div>';
+  if(so.err)return h+'<div class="card stack"><b>Les statistiques ne sont pas encore prêtes.</b><p class="muted" style="margin:0">Il reste une étape : collez le fichier <b>supabase/mise-a-jour-14.sql</b> dans Supabase › SQL Editor, puis touchez Run. Les chiffres commencent à partir de ce moment-là.</p><p class="small muted" style="margin:0">Détail : '+esc(so.err)+'</p></div><div class="gridf">'+aDormants()+'</div>';
+  if(!x)return h+'<div class="card"><p class="muted" style="margin:0">Chargement des statistiques…</p></div>';
+  const Op=S.orders.filter(o=>Date.now()-new Date(o.created_at)<D*DAY),vis=x.visiteurs||0;
+  const pctC=vis?Math.round((x.commandeurs||0)/vis*1000)/10:0;
+  h+='<div class="kpis">'+kpi(stNum(vis),'Visiteurs',D<90?trend(vis,x.visiteurs_avant||0):'','hero')+
+    kpi(stNum(x.pages),'Pages vues','<em>'+(vis?String(Math.round(x.pages/vis*10)/10).replace('.',','):0)+' pages par visiteur</em>')+
+    kpi(stNum(x.cx_vendeurs),'Connexions vendeurs','<em>'+x.cx_vendeurs_diff+' vendeur'+(x.cx_vendeurs_diff>1?'s':'')+' différent'+(x.cx_vendeurs_diff>1?'s':'')+'</em>')+
+    kpi(stNum(x.cx_clients),'Connexions clients','<em>'+x.cx_clients_diff+' client'+(x.cx_clients_diff>1?'s':'')+' différent'+(x.cx_clients_diff>1?'s':'')+'</em>')+
+    kpi(String(pctC).replace('.',',')+' %','Visiteurs qui commandent','<em>'+stNum(x.commandeurs)+' visiteur'+(x.commandeurs>1?'s':'')+'</em>')+
+    kpi(stNum(x.paniers_abandon),'Paniers abandonnés','<em class="down">sur '+stNum(x.paniers)+' panier'+(x.paniers>1?'s':'')+'</em>')+'</div>';
+  // Visiteurs par jour
+  const n=Math.max(1,Math.min(D,30)),keys=[];for(let i=n-1;i>=0;i--)keys.push(dayKey(Date.now()-i*DAY));
+  const pj={};(x.par_jour||[]).forEach(r=>pj[r.j]=r);const mv=Math.max(1,...keys.map(k=>(pj[k]||{}).v||0));
+  const jours=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const chart='<div class="stbars">'+keys.map((k,i)=>{const r=pj[k]||{v:0,c:0},d=new Date(k+'T12:00:00');return '<div title="'+k.slice(8)+'/'+k.slice(5,7)+' : '+r.v+' visiteur(s), '+r.c+' ont commandé"><span class="v'+(i===n-1?' t':'')+'" style="height:'+(r.v/mv*100)+'%"><i style="height:'+(r.v?r.c/r.v*100:0)+'%"></i></span>'+(n<=10?'<em>'+(i===n-1?'Auj.':jours[d.getDay()]+' '+d.getDate())+'</em>':'')+'</div>';}).join('')+'</div><div class="row small muted" style="gap:14px"><span class="row" style="gap:5px"><i class="sw" style="background:#D9CCF7"></i>Visiteurs</span><span class="row" style="gap:5px"><i class="sw" style="background:#FF7A1A"></i>Ont commandé</span></div>';
+  const hr=Array(24).fill(0);(x.par_heure||[]).forEach(r=>hr[r.h]=r.n);const mh=Math.max(1,...hr);
+  let bi=0,bv=-1;for(let i=0;i<23;i++){const v=hr[i]+hr[i+1];if(v>bv){bv=v;bi=i;}}
+  const heat='<div class="sthr">'+hr.map((v,i)=>'<span title="'+i+' h : '+v+' pages vues" style="background:rgba(124,58,237,'+(0.07+v/mh*0.93).toFixed(2)+')"></span>').join('')+'</div><div class="row between small muted"><span>0 h</span><span>6 h</span><span>12 h</span><span>18 h</span><span>23 h</span></div>';
+  h+='<div class="gridf">'+stCard('Visiteurs par jour',chart,n>1?n+' derniers jours':'aujourd\'hui')+
+    stCard('Heures les plus actives',heat+(bv>0?'<p class="small" style="margin:0">💡 Meilleur moment pour publier : <b>'+bi+' h – '+(bi+2)+' h</b></p>':''),'pages vues par heure');
+  // Boutiques
+  const B=(x.boutiques||[]).map(b=>Object.assign({s:shopById(b.id)},b)).filter(b=>b.s);
+  const cmd=id=>Op.filter(o=>o.shop_id===id).length;
+  h+=rankList('Boutiques les plus visitées',B.slice(0,8).map(b=>[avatar(b.s,30)+esc(b.s.nom),stNum(b.v)+' visites · '+cmd(b.id)+' cmd']));
+  const W=B.filter(b=>b.wa+b.tg>0).sort((a,b)=>(b.wa+b.tg)-(a.wa+a.tg)).slice(0,8);
+  h+=rankList('Clics WhatsApp et Telegram',W.map(b=>[avatar(b.s,30)+esc(b.s.nom),'💬 '+b.wa+(b.tg?' · ✈️ '+b.tg:'')]),'Aucun clic pour l\'instant.');
+  // Villes et appareils
+  const V=x.villes||[],tv=Math.max(1,V.reduce((a,r)=>a+r.n,0)),ap={};(x.appareils||[]).forEach(r=>ap[r.a]=r.n);const ta=Math.max(1,(ap.tel||0)+(ap.pc||0));
+  h+=stCard('Villes des visiteurs',stMeters(V.map(r=>[esc(r.ville),r.n,Math.round(r.n/tv*100)+' %']))+'<div class="row between small" style="margin-top:4px"><b>📱 Téléphone '+Math.round((ap.tel||0)/ta*100)+' %</b><b>💻 Ordinateur '+Math.round((ap.pc||0)/ta*100)+' %</b></div>','selon la connexion internet');
+  // Recherches
+  const R=x.recherches||[],Rv=R.filter(r=>r.vide);
+  h+=rankList('Ce que les clients cherchent',R.slice(0,8).map(r=>[esc(r.q)+(r.vide?' <span class="badge b-red">0 résultat</span>':''),r.n+' pers.']),'Aucune recherche pour l\'instant.');
+  h+=stCard('🔎 Cherché sans rien trouver',(Rv.length?'<p class="small muted" style="margin:0">Trouvez des vendeurs qui proposent ces articles : les clients les attendent.</p>'+Rv.slice(0,8).map(r=>'<div class="row between rank"><b>'+esc(r.q)+'</b><span class="small">'+r.n+' personne'+(r.n>1?'s':'')+'</span></div>').join(''):'<p class="muted" style="margin:0">Les clients trouvent ce qu\'ils cherchent. 👍</p>'));
+  // Paniers abandonnés
+  const AP=(x.abandon_produits||[]).map(r=>[prodById(r.id),r.n]).filter(r=>r[0]);
+  h+=stCard('🛒 Paniers abandonnés','<p class="small muted" style="margin:0"><b>'+stNum(x.paniers_abandon)+'</b> visiteur'+(x.paniers_abandon>1?'s ont':' a')+' mis un article au panier sans commander.</p>'+(AP.length?'<b class="small">Articles laissés dans le panier</b>'+AP.map(r=>'<div class="row between rank"><a class="ell" href="#produit-'+r[0].id+'">'+esc(r[0].nom)+'</a><span class="small">'+r[1]+' fois</span></div>').join(''):''));
+  // Produits regardés mais peu commandés
+  const oq={};Op.forEach(o=>(o.items||[]).forEach(it=>{if(it.pid)oq[it.pid]=(oq[it.pid]||0)+n0(it.qty);}));
+  const PV=(x.produits_vus||[]).map(r=>({p:prodById(r.id),o:oq[r.id]||0,v:r.v})).filter(r=>r.p&&r.v>=3&&r.o/r.v<0.1).slice(0,6);
+  h+=stCard('👀 Très regardés, peu commandés',(PV.length?'<p class="small muted" style="margin:0">Prix trop haut ou photo à refaire ? Conseillez le vendeur.</p>'+PV.map(r=>'<div class="row between rank" style="gap:8px"><a class="ell" style="flex:1;min-width:0" href="#produit-'+r.p.id+'">'+esc(r.p.nom)+'</a><span class="small" style="white-space:nowrap">'+r.v+' vues · '+r.o+' cmd</span></div>').join(''):'<p class="muted" style="margin:0">Rien à signaler pour l\'instant.</p>'));
+  h+=aDormants()+'</div>';
+  // Connexions
+  const F_=ui.cxF||'tout',C=(x.connexions||[]).filter(c=>F_==='tout'||(F_==='echec'?c.k==='echec':c.k==='connexion'&&c.role===F_));
+  const roleB={vendeur:'<span class="badge b-violet">Vendeur</span>',client:'<span class="badge b-blue">Client</span>',admin:'<span class="badge b-dark">Admin</span>'};
+  const who=c=>{const sh=c.shop&&shopById(c.shop);if(sh)return avatar(sh,30)+'<span class="ell">'+esc(sh.nom)+'</span>';const nm=c.role==='admin'?'Vous':c.nom||(c.uid?'Client':'Numéro inconnu');return ctAv(null,nm,c.uid||c.tel,false).replace('class="tav"','class="tav sm"')+'<span class="ell">'+esc(nm)+(c.tel&&c.role!=='admin'?' · '+esc(telFmt(c.tel)):'')+'</span>';};
+  const AL=(x.alertes||[]).map(a=>{const c=(x.connexions||[]).find(c=>c.k==='echec'&&c.tel===a.tel),sh=c&&c.shop&&shopById(c.shop);return '<div class="stalert">⚠ '+a.n+' mots de passe incorrects sur le compte « '+esc(sh?sh.nom:telFmt(a.tel))+' » '+quand(a.t)+'. Vérifiez avec la personne.</div>';}).join('');
+  const lim=ui.cxAll?300:40;
+  h+='<section class="card stack"><div class="row between wrapx" style="gap:8px"><h2 style="font-size:17px">Suivi des connexions</h2><span class="small muted"><i class="stdot"></i>'+stNum(x.en_ligne)+' visiteur'+(x.en_ligne>1?'s':'')+' en ce moment · gardé 90 jours</span></div>'+
+    '<div class="row wrapx" style="gap:6px">'+[['tout','Tout'],['vendeur','Vendeurs'],['client','Clients'],['admin','Admin'],['echec','Échecs']].map(f=>'<button type="button" class="chip'+(F_===f[0]?' on':'')+'" data-a="cxF" data-id="'+f[0]+'">'+f[1]+'</button>').join('')+'</div>'+AL+
+    (C.length?'<div class="cxlist"><div class="cxrow cxh"><span>Quand</span><span>Qui</span><span>Rôle</span><span>Résultat</span><span>Appareil · Ville</span></div>'+C.slice(0,lim).map(c=>'<div class="cxrow"><span class="small">'+quand(c.t).replace(/^à /,'Aujourd\'hui ').replace(/^hier/,'Hier').replace(/^le /,'')+'</span><span class="row cxwho" style="gap:8px;min-width:0">'+who(c)+'</span><span>'+(roleB[c.role]||'')+'</span><span>'+(c.k==='echec'?'<b class="cxko">✗ Mot de passe incorrect</b>':'<b class="cxok">✓ Connecté</b>')+'</span><span class="small muted">'+esc([c.app,c.ville].filter(Boolean).join(' · '))+'</span></div>').join('')+'</div>'+(C.length>lim?'<button type="button" class="btn btn-w btn-s" data-a="cxAll">Voir plus</button>':''):'<p class="muted" style="margin:0">Aucune connexion sur cette période.</p>')+'</section>';
+  return h;
 }
 const badgeVerif=s=>s.verification==='verifie'?'<span class="badge b-blue">Vérifié</span>':s.verification==='refuse'?'<span class="badge b-grey">Refusé</span>':'<span class="badge b-amber">En attente</span>';
 const CT_COLS=['#6D28D9','#FF7A1A','#0E7A5F','#2563EB','#DB2777','#E11D48','#0891B2','#CA8A04','#7C3AED'];
@@ -1291,6 +1375,7 @@ function render(keep){
   if(!S.loaded){app.innerHTML='<div class="loading">Chargement…</div>';return;}
   let h=(location.hash||'#accueil').slice(1)||'accueil';
   if(h.startsWith('discussion-')){ui.vTab='messages';ui.conv=h.slice(11);history.replaceState(null,'','#vendeur');h='vendeur';}
+  stPage(h);
   let html;
   if(h.startsWith('boutique-'))html=vBoutique(decodeURIComponent(h.slice(9)));
   else if(h.startsWith('produit-'))html=vProduit(h.slice(8));
@@ -1323,10 +1408,10 @@ function copy(text,msg){const done=()=>toast(msg||'Lien copié');
   try{navigator.clipboard.writeText(text).then(done,fb);}catch(e){fb();}}
 function addToCart(pid,taille){const p=prodById(pid);if(!p||p.stock<=0)return;
   const l=cart.find(x=>x.pid===pid&&(x.taille||null)===(taille||null));
-  if(l){if(l.qty<p.stock)l.qty++;}else cart.push({pid,qty:1,taille:taille||null});saveCart();toast('Ajouté au panier');}
+  if(l){if(l.qty<p.stock)l.qty++;}else cart.push({pid,qty:1,taille:taille||null});saveCart();toast('Ajouté au panier');st('panier',{s:p.shop_id,p:p.id});}
 function logOrder(shopId,canal,single,id){
   const lines=single?[{p:prodById(single),qty:1,taille:ui.taille}]:cart.map(l=>({p:prodById(l.pid),qty:l.qty,taille:l.taille})).filter(l=>l.p&&l.p.shop_id===shopId);
-  if(!lines.length)return;id=id||uuid();
+  if(!lines.length)return;id=id||uuid();st('commande',{s:shopId});
   const row={id,shop_id:shopId,canal,statut:'envoyee',items:lines.map(l=>({pid:l.p.id,nom:l.p.nom,prix:prix(l.p),qty:l.qty,taille:l.taille||null})),total:lines.reduce((a,l)=>a+prix(l.p)*l.qty,0),
     client_nom:String(client.nom||'').trim().slice(0,80),client_tel:String(client.tel||'').trim().slice(0,30),client_adresse:String(client.adresse||'').trim().slice(0,200)};
   const rf=lsGet('gbairai-ref',null),sh0=shopById(shopId);if(rf&&sh0&&rf.slug===sh0.slug&&rf.code&&Date.now()-rf.ts<30*864e5)row.commercial_code=String(rf.code).slice(0,20);
@@ -1488,6 +1573,11 @@ const A={
   aReset:t=>act(async()=>{const r=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({shop_id:t.dataset.id})});
     let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||'Service indisponible. Vérifiez la clé dans Vercel.');ui.aPwd={shop:t.dataset.id,pw:j.password};},'Nouveau mot de passe créé'),
   per:t=>{ui.per=Number(t.dataset.id);render(true);},
+  stPer:t=>{ui.stD=Number(t.dataset.id);render(true);},
+  stReload:()=>{ui.stats=null;render(true);},
+  stDormAll:()=>{ui.stDormAll=!ui.stDormAll;render(true);},
+  cxF:t=>{ui.cxF=t.dataset.id;ui.cxAll=false;render(true);},
+  cxAll:()=>{ui.cxAll=true;render(true);},
   vdType:t=>{ui.vd.type=t.dataset.id;render(true);},
   vdRefOn:t=>{ui.vdRef=t.dataset.id;render(true);},
   vdRefOff:()=>{ui.vdRef=null;render(true);},
@@ -1549,7 +1639,7 @@ document.addEventListener('input',e=>{
   const ck=e.target.dataset&&e.target.dataset.client;if(ck){client[ck]=e.target.value;lsSet('gbairai-client',client);refreshOrderLinks();return;}
   if(e.target.dataset&&e.target.dataset.i2==='vdNum'){ui.vd=ui.vd||{type:'cni',num:''};ui.vd.num=e.target.value;return;}
   const k=e.target.dataset&&e.target.dataset.i;if(!k)return;ui[k]=e.target.value;
-  if(k==='q')document.getElementById('results').innerHTML=results();
+  if(k==='q'){document.getElementById('results').innerHTML=results();clearTimeout(stQT);stQT=setTimeout(()=>{const v=ui.q.trim().toLowerCase().slice(0,80);if(v.length>=2&&v!==stQ){stQ=v;st('recherche',{q:v,n:ui.qN||0});}},1500);}
   else if(k==='ctQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="ctQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aideQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="aideQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aQ'){const pos=e.target.selectionStart;render(true);const el=document.getElementById('aq');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
@@ -1628,8 +1718,8 @@ const FORMS={
     if(!r.data.session){const l=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(l.error)throw new Error('Compte créé. Connectez-vous avec « Me connecter ».');}
     S.cnom=nom;client.nom=client.nom||nom;client.tel=client.tel||d.phone;lsSet('gbairai-client',client);
   },'Compte créé 🎉'),
-  clogin:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error)throw new Error('Numéro ou mot de passe incorrect.');},'Connecté'),
-  login:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error)throw r.error;},'Connecté'),
+  clogin:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error){st('echec',{q:waNum(d.phone)});throw new Error('Numéro ou mot de passe incorrect.');}lsSet('gbairai-cx','');},'Connecté'),
+  login:d=>act(async()=>{const r=await sb.auth.signInWithPassword({email:phoneEmail(d.phone),password:d.password});if(r.error){st('echec',{q:waNum(d.phone)});throw r.error;}lsSet('gbairai-cx','');},'Connecté'),
   newshop:d=>act(()=>createShop(d),'Boutique créée'),
   produit:(d,f)=>act(async()=>{if(d.categorie)lsSet('gbairai-dernier-rayon',d.categorie);
     const s=myShop(),prix=n0(d.prix);if(prix<=0)throw new Error('Indiquez un prix.');

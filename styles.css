@@ -623,3 +623,20 @@ a.badge{text-decoration:none}
 
 /* Onglets : sur ordinateur, tous visibles (retour à la ligne) */
 @media (min-width:700px){.tabs{flex-wrap:wrap;overflow-x:visible}.tabs>button{flex:1 1 auto}}
+/* Statistiques (Admin) */
+.stbars{display:flex;align-items:stretch;gap:5px;height:150px;padding-bottom:18px}
+.stbars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;position:relative;min-width:0}
+.stbars .v{display:flex;flex-direction:column;justify-content:flex-end;background:#D9CCF7;border-radius:7px 7px 3px 3px;min-height:2px;overflow:hidden}
+.stbars .v.t{background:#7C3AED}.stbars .v i{display:block;background:#FF7A1A}
+.stbars em{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-style:normal;font-size:10.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.sthr{display:grid;grid-template-columns:repeat(24,1fr);gap:3px}.sthr span{height:30px;border-radius:5px}
+.stalert{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:14px;padding:10px 14px;font-size:13px;font-weight:600}
+.stdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22C55E;margin-right:6px}
+.badge.b-dark{background:#1B1033;color:#fff}
+.tav.sm{width:30px;height:30px;font-size:11px}
+.cxlist{display:flex;flex-direction:column}
+.cxrow{display:grid;grid-template-columns:130px minmax(0,1.7fr) 90px minmax(0,1.3fr) minmax(0,1.4fr);gap:10px;align-items:center;padding:9px 0;border-top:1px solid #F1EDFB;font-size:13.5px}
+.cxrow.cxh{border-top:0;font-size:12px;color:var(--muted);font-weight:700;padding-top:0}
+.cxwho .ell{font-weight:600}.cxok{color:#0E7A5F}.cxko{color:#DC2626}
+@media (max-width:699px){.cxrow{grid-template-columns:1fr auto;gap:4px 10px}.cxrow.cxh{display:none}.cxrow>span:nth-child(1){grid-column:1/-1;order:-1;color:var(--muted)}.cxrow>span:nth-child(5){grid-column:1/-1}}
+:root[data-theme="dark"] .stbars .v{background:#4C3A7A}:root[data-theme="dark"] .cxrow{border-color:#2A2240}:root[data-theme="dark"] .stalert{background:#3B1219;border-color:#7F1D1D;color:#FECACA}
