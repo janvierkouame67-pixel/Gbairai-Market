@@ -1191,8 +1191,24 @@ const A={
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-a]');if(!t)return;
   if(t.classList.contains('modal')&&e.target!==t)return;
+  if(DEL.has(t.dataset.a)){delAsk(t);return;}
   const f=A[t.dataset.a];if(f)f(t,e);
 });
+/* Code image obligatoire avant toute suppression */
+const DEL=new Set(['delProd','delVers','delPoint','delCm','delTx','bnDel','blDel','rvDel','delShop','delCat','delQ']);
+let delPending=null,delCode='';
+function delDraw(){const cv=document.getElementById('delcv');if(!cv)return;const A_='ABCDEFGHJKMNPRSTUVWXYZ23456789';delCode='';for(let i=0;i<5;i++)delCode+=A_[Math.floor(Math.random()*A_.length)];
+  const x=cv.getContext('2d'),w=cv.width,h=cv.height,g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#EDE7FB');g.addColorStop(1,'#FFE9D6');x.fillStyle=g;x.fillRect(0,0,w,h);
+  const col=['#5B21B6','#EA580C','#059669','#1E3A8A','#9D174D'];
+  for(let i=0;i<6;i++){x.strokeStyle=col[i%5]+'66';x.lineWidth=1.5;x.beginPath();x.moveTo(Math.random()*w,Math.random()*h);x.bezierCurveTo(Math.random()*w,Math.random()*h,Math.random()*w,Math.random()*h,Math.random()*w,Math.random()*h);x.stroke();}
+  for(let i=0;i<40;i++){x.fillStyle=col[i%5]+'55';x.beginPath();x.arc(Math.random()*w,Math.random()*h,1.5,0,7);x.fill();}
+  x.textBaseline='middle';for(let i=0;i<5;i++){x.save();x.translate(22+i*(w-40)/4.4,h/2+(Math.random()*10-5));x.rotate((Math.random()-.5)*.6);x.font='800 '+(30+Math.random()*6)+'px Sora, Arial, sans-serif';x.fillStyle=col[i%5];x.fillText(delCode[i],-10,0);x.restore();}
+  const inp=document.getElementById('delin');if(inp){inp.value='';inp.focus();}}
+function delAsk(t){delPending=t;const lab=(t.textContent||'').trim();
+  document.getElementById('layer').innerHTML='<div class="modal" data-a="closeModal"><form class="card stack" data-stop="1" data-f="delCode" autocomplete="off"><h2 style="font-size:17px">🔒 Confirmer la suppression</h2><p class="small muted" style="margin:0">Pour éviter les erreurs, recopiez le code de l\'image. La suppression est définitive.</p><div class="row" style="gap:8px"><canvas id="delcv" width="220" height="64" style="border-radius:14px;flex:1;max-width:240px;height:64px"></canvas><button type="button" class="icon-btn" data-a="delNew" aria-label="Autre code">↻</button></div><input class="in" id="delin" name="code" required maxlength="5" placeholder="Code de l\'image" style="letter-spacing:6px;font-weight:800;text-transform:uppercase" aria-label="Code de l\'image"><div class="grid2"><button type="button" class="btn btn-w" data-a="closeModal">Annuler</button><button class="btn btn-r" type="submit">Supprimer</button></div></form></div>';
+  delDraw();}
+A.delNew=()=>delDraw();
+
 function refreshOrderLinks(){
   document.querySelectorAll('[data-msg]').forEach(el=>{const sid=el.dataset.msg,s=shopById(sid);if(!s)return;
     const lines=cart.map(l=>({p:prodById(l.pid),qty:l.qty,taille:l.taille})).filter(l=>l.p&&l.p.shop_id===sid),o=oid('c-'+sid),txt=orderText(s,lines,o);
@@ -1317,6 +1333,8 @@ const FORMS={
     if(ui.bannerImg)row.image=await uploadPhoto(ui.bannerImg.blob);await q(sb.from('banners').insert(row));ui.bannerImg=undefined;},'Bannière publiée'),
   blacklist:d=>act(async()=>{const ph=waNum(d.phone);if(ph.length<12)throw new Error('Numéro invalide.');await q(sb.from('blacklist').upsert({phone:ph,motif:String(d.motif||'').trim()}));},'Numéro bloqué')
 };
+FORMS.delCode=d=>{if(String(d.code||'').trim().toUpperCase()!==delCode){document.getElementById('layer').querySelector('h2').textContent='❌ Code faux, réessayez';delDraw();return;}
+  const t=delPending;delPending=null;document.getElementById('layer').innerHTML='';if(t&&A[t.dataset.a])A[t.dataset.a](t);};
 document.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();
   const d={};new FormData(f).forEach((v,k)=>d[k]=v);const fn=FORMS[f.dataset.f];if(fn)fn(d,f);
