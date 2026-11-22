@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/vendre",
+      "destination": "/api/share?v=1"
+    },
+    {
       "source": "/b/:slug",
       "destination": "/api/share?b=:slug"
     },

@@ -32,7 +32,13 @@ module.exports = async (req, res) => {
   let title = 'Gbairai Market', desc = "Toutes les boutiques de Côte d'Ivoire au même endroit. Commandez directement sur WhatsApp.";
   let image = base + '/og2.jpg', drawn = true, target = '/', url = base;
   try {
-    if (q.b && /^[a-z0-9-]{1,80}$/.test(q.b)) {
+    if (q.v) {
+      // Invitation des vendeurs : /vendre
+      target = '/#vendeur'; url = base + '/vendre';
+      title = 'Crée ta boutique en ligne GRATUITE · Gbairai Market';
+      desc = 'Prête en 2 minutes sur ton téléphone. Tes articles avec photos et prix, et tes clients commandent directement sur ton WhatsApp.';
+      image = base + '/og-vendre.jpg';
+    } else if (q.b && /^[a-z0-9-]{1,80}$/.test(q.b)) {
       target = '/#boutique-' + q.b; url = base + '/b/' + q.b;
       if (q.c && /^[A-Za-z0-9]{2,20}$/.test(q.c)) target = '/?c=' + q.c.toUpperCase() + '#boutique-' + q.b;
       const [s] = await get('shops?select=id,nom,description,quartier,ville,logo,verification&statut=eq.actif&slug=eq.' + q.b + '&limit=1');
