@@ -8,6 +8,17 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const place = s => { const q = (s.quartier || '').trim(), v = (s.ville || '').trim(); return q && v && q.toLowerCase() !== v.toLowerCase() ? q + ', ' + v : (q || v || "Côte d'Ivoire"); };
 const fmt = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
+// Image d'aperçu dessinée pour la boutique ou le produit (photos/og/<id>.jpg), si elle existe
+async function ogImage(id) {
+  try {
+    const u = URL_SB + '/storage/v1/object/public/photos/og/' + id + '.jpg';
+    const r = await fetch(u, { method: 'HEAD' });
+    if (!r.ok) return null;
+    const v = (r.headers.get('etag') || r.headers.get('last-modified') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 16);
+    return u + (v ? '?v=' + v : '');
+  } catch (e) { return null; }
+}
+
 async function get(path) {
   const r = await fetch(URL_SB + '/rest/v1/' + path, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY } });
   if (!r.ok) return [];
@@ -19,7 +30,7 @@ module.exports = async (req, res) => {
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'gbairai-market.vercel.app';
   const base = 'https://' + host;
   let title = 'Gbairai Market', desc = "Toutes les boutiques de Côte d'Ivoire au même endroit. Commandez directement sur WhatsApp.";
-  let image = base + '/og.jpg', target = '/', url = base;
+  let image = base + '/og2.jpg', drawn = true, target = '/', url = base;
   try {
     if (q.b && /^[a-z0-9-]{1,80}$/.test(q.b)) {
       target = '/#boutique-' + q.b; url = base + '/b/' + q.b;
@@ -29,7 +40,8 @@ module.exports = async (req, res) => {
         const prods = await get('products?select=photo&visible=eq.true&photo=not.is.null&shop_id=eq.' + s.id + '&order=created_at.desc&limit=1');
         title = s.nom + (s.verification === 'verifie' ? ' ✅' : '') + ' · Gbairai Market';
         desc = (s.description ? s.description + ' · ' : '') + '📍 ' + place(s) + ' · Commande directe sur WhatsApp';
-        image = (prods[0] && prods[0].photo) || s.logo || image;
+        const og = await ogImage(s.id);
+        if (og) image = og; else { image = (prods[0] && prods[0].photo) || s.logo || image; drawn = image === base + '/og2.jpg'; }
       }
     } else if (q.p && /^[0-9a-f-]{36}$/i.test(q.p)) {
       target = '/#produit-' + q.p; url = base + '/p/' + q.p;
@@ -38,7 +50,8 @@ module.exports = async (req, res) => {
         const [s] = await get('shops?select=nom,quartier,ville&id=eq.' + p.shop_id + '&limit=1');
         title = p.nom + ' · ' + fmt(p.prix) + ' FCFA';
         desc = (s ? '🏪 ' + s.nom + ' · ' + place(s) + ' — ' : '') + (p.description || 'Commandez directement sur WhatsApp.');
-        if (p.photo) image = p.photo;
+        const og = await ogImage(q.p);
+        if (og) image = og; else if (p.photo) { image = p.photo; drawn = false; }
       }
     }
   } catch (e) { /* on garde l'aperçu général */ }
@@ -53,7 +66,7 @@ module.exports = async (req, res) => {
 <meta property="og:locale" content="fr_FR">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:image" content="${esc(image)}">
+<meta property="og:image" content="${esc(image)}">${drawn ? '\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">' : ''}
 <meta property="og:url" content="${esc(url)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#5B21B6">

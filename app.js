@@ -238,6 +238,7 @@ async function loadAll(){
   S.loaded=true;
   ping();
   if(S.user)stCx();
+  if(S.user&&!isAdmin())setTimeout(ogRefresh,3000);
   if(S.user&&!S.synced&&!S.syncing){S.syncing=true;clientSync().finally(()=>{S.syncing=false;});}
   if(!S.user){S.synced=false;S.cnom='';}
   cart=cart.filter(l=>prodById(l.pid));saveCart();
@@ -258,6 +259,20 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)stFlush();}
 document.addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a)return;const href=a.getAttribute('href')||'';if(!/(wa\.me|t\.me)\//.test(href))return;
   const s=(a.dataset.shop&&shopById(a.dataset.shop))||stRouteShop();if(!s)return;
   if(/wa\.me\//.test(href)){if(s.whatsapp&&href.indexOf('wa.me/'+waNum(s.whatsapp))>=0)st('wa',{s:s.id});}else if(s.telegram)st('tg',{s:s.id});},true);
+/* ---------- Images d'aperçu des liens partagés (dessinées ici, rangées par /api/og) ---------- */
+let ogBusy=false;
+function ogHash(o){const t=JSON.stringify(o);let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return String(h);}
+async function ogRefresh(){if(ogBusy||!S.user||!S.token||!window.GbStatut||!GbStatut.ogShop)return;const s=myShop();if(!s||s.statut!=='actif')return;ogBusy=true;
+  try{const done=lsGet('gbairai-og',{}),ps=shopProducts(s.id).filter(p=>p.visible&&p.stock>0).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const rv=(S.reviews||[]).filter(r=>r.shop_id===s.id&&r.visible!==false),note=rv.length?rv.reduce((a,r)=>a+n0(r.note),0)/rv.length:0;
+    const top=ps.filter(p=>p.photo).concat(ps.filter(p=>!p.photo)).slice(0,3),base=[s.nom,s.logo,s.verification,s.quartier,s.ville,s.livraison_zones,S.settings.nom],jobs=[];
+    const hs=ogHash([base,s.description,top.map(p=>[p.id,p.nom,p.prix,p.prix_barre,p.photo]),Math.round(note*10),rv.length,ps.length>3?ps.length:0]);
+    if(done[s.id]!==hs)jobs.push(['shop',s.id,hs,()=>GbStatut.ogShop({s:s,prods:top,total:ps.length,note:note,nbAvis:rv.length,brand:S.settings.nom})]);
+    ps.forEach(p=>{const h=ogHash([base,p.nom,p.prix,p.prix_barre,p.photo,p.tailles,p.stock<=3?p.stock:9]);if(done[p.id]!==h)jobs.push(['product',p.id,h,()=>GbStatut.ogProduct({p:p,s:s,brand:S.settings.nom})]);});
+    for(const j of jobs.slice(0,8)){if(document.hidden)break;const data=await j[3]();
+      const r=await fetch('/api/og',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({kind:j[0],id:j[1],data:data})});
+      const ok=await r.json().catch(()=>({}));if(!r.ok||!ok.ok)break;done[j[1]]=j[2];lsSet('gbairai-og',done);}
+  }catch(e){}finally{ogBusy=false;}}
 async function act(fn,okMsg){
   if(ui.busy)return;ui.busy=true;
   try{await fn();if(okMsg)toast(okMsg);await loadAll();render(true);}
