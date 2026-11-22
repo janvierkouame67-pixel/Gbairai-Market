@@ -640,3 +640,40 @@ a.badge{text-decoration:none}
 .cxwho .ell{font-weight:600}.cxok{color:#0E7A5F}.cxko{color:#DC2626}
 @media (max-width:699px){.cxrow{grid-template-columns:1fr auto;gap:4px 10px}.cxrow.cxh{display:none}.cxrow>span:nth-child(1){grid-column:1/-1;order:-1;color:var(--muted)}.cxrow>span:nth-child(5){grid-column:1/-1}}
 :root[data-theme="dark"] .stbars .v{background:#4C3A7A}:root[data-theme="dark"] .cxrow{border-color:#2A2240}:root[data-theme="dark"] .stalert{background:#3B1219;border-color:#7F1D1D;color:#FECACA}
+
+/* ---------- Connexion : carrousel 3D ---------- */
+.a3d-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:radial-gradient(ellipse at 50% 40%,#4C1D95 0%,#1E0B45 55%,#0B0618 100%)}
+.a3d-stage{position:absolute;left:50%;top:46%;width:0;height:0;perspective:1300px}
+.a3d-ring{position:absolute;transform-style:preserve-3d;animation:a3dSpin 22s linear infinite}
+@keyframes a3dSpin{from{transform:rotateX(-8deg) rotateY(0)}to{transform:rotateX(-8deg) rotateY(-360deg)}}
+.a3d-ph{--w:140px;--h:190px;--z:300px;position:absolute;width:var(--w);height:var(--h);left:calc(var(--w) / -2);top:calc(var(--h) / -2);border-radius:20px;background:#fff center/cover no-repeat;border:2px solid rgba(255,255,255,.35);box-shadow:0 20px 50px rgba(0,0,0,.5);transform:rotateY(calc(var(--i) * 45deg)) translateZ(var(--z))}
+.a3d-ph b{position:absolute;left:10px;bottom:10px;background:#fff;color:#1B1033;font-size:12px;padding:4px 10px;border-radius:99px;font-weight:700}
+.a3d-floor{position:absolute;left:-600px;top:200px;width:1200px;height:200px;background:radial-gradient(ellipse,rgba(139,92,246,.45),transparent 65%);filter:blur(10px)}
+.a3d-orb{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFD0A6,#FF7A1A 55%,#B8470A);box-shadow:0 20px 40px rgba(255,122,26,.35);animation:a3dBob 5s ease-in-out infinite}
+.a3d-orb.o1{width:80px;height:80px;right:8%;top:12%}
+.a3d-orb.o2{width:40px;height:40px;left:10%;bottom:20%;animation-duration:4s;animation-delay:-2s;background:radial-gradient(circle at 35% 30%,#B7F5D8,#1FAF7A 55%,#0E7A5F)}
+@keyframes a3dBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+.auth3d>*:not(.a3d-bg){position:relative;z-index:1}
+.auth3d .logo{color:#fff}
+.auth3d .hero .ball{display:none}
+.auth3d .hero{background:rgba(30,12,70,.86);border:1px solid rgba(255,255,255,.18);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.auth3d .card{background:rgba(30,12,70,.86);color:#fff;border:1px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 30px 80px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25);animation:a3dTilt 7s ease-in-out infinite}
+@keyframes a3dTilt{0%,100%{transform:perspective(900px) rotateY(-4deg) rotateX(2deg)}50%{transform:perspective(900px) rotateY(4deg) rotateX(-2deg)}}
+.auth3d .lbl,.auth3d .regok,.auth3d .small,.auth3d .muted{color:rgba(255,255,255,.85)}
+.auth3d .regok a{color:#FFB37A}
+.auth3d .in{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff}
+.auth3d .in::placeholder{color:rgba(255,255,255,.5)}
+.auth3d select.in option{color:#1B1033;background:#fff}
+.auth3d .linkbtn{color:rgba(255,255,255,.85)}
+.auth3d .note{background:rgba(255,255,255,.1);color:#fff}
+.auth3d .tabs{background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.auth3d .tab{color:rgba(255,255,255,.85)}.auth3d .tab.on{background:#fff;color:#1B1033}
+.auth3d form .btn-v{background:linear-gradient(180deg,#FF9A4A,#FF7A1A);box-shadow:0 5px 0 #C2530A,0 14px 30px rgba(255,122,26,.45);color:#fff;position:relative;overflow:hidden}
+.auth3d form .btn-v:after{content:"";position:absolute;top:0;bottom:0;width:60px;left:-80px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:a3dShine 3.2s ease-in-out infinite}
+@keyframes a3dShine{0%,55%{left:-80px}85%,100%{left:110%}}
+@media (min-width:700px){
+  .wrap.auth3d{max-width:460px;padding-left:16px;padding-right:16px}
+  .auth3d .hero{padding:26px 28px}.auth3d .hero h1{font-size:28px}.auth3d .hero p{font-size:14px}
+  .a3d-ph{--w:190px;--h:250px;--z:440px}
+}
+@media (prefers-reduced-motion:reduce){.a3d-ring,.a3d-orb,.auth3d .card,.auth3d form .btn-v:after{animation:none}}

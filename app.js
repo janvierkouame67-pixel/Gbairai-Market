@@ -644,10 +644,16 @@ function vVerifier(){
 }
 
 /* ---------- AUTH ---------- */
+/* Fond de connexion : carrousel 3D des rayons qui tourne derrière le formulaire */
+function a3dBg(){
+  const R=[['mode','Mode'],['sacs','Sacs'],['chaussures','Chaussures'],['tel','Téléphones'],['beaute','Beauté'],['bijoux','Bijoux'],['montres','Montres'],['electronique','Électronique']];
+  return '<div class="a3d-bg" aria-hidden="true"><span class="a3d-orb o1"></span><span class="a3d-orb o2"></span><div class="a3d-stage"><div class="a3d-floor"></div><div class="a3d-ring">'+
+    R.map((r,i)=>'<div class="a3d-ph" style="--i:'+i+';background-image:url(icons/rayons/'+r[0]+'.jpg)"><b>'+r[1]+'</b></div>').join('')+'</div></div></div>';
+}
 function authForms(title,intro,allowCreate){
   const cats=DIVERS_OPT+CATS().map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nom)+'</option>').join('');
   const creer=allowCreate&&ui.authMode==='creer';
-  return '<div class="wrap">'+logoHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:120px;height:120px"></span><h1>'+title+'</h1><p>'+intro+'</p></section>'+
+  return '<div class="wrap auth3d">'+a3dBg()+logoHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:120px;height:120px"></span><h1>'+title+'</h1><p>'+intro+'</p></section>'+
   (allowCreate?'<div class="tabs"><button type="button" class="tab'+(creer?' on':'')+'" data-a="authMode" data-id="creer">Créer ma boutique</button><button type="button" class="tab'+(!creer?' on':'')+'" data-a="authMode" data-id="connexion">Me connecter</button></div>':'')+
   (creer?'<form class="card stack" data-f="signup"><label class="lbl">Nom de la boutique<input class="in" id="c-nom" name="nom" required maxlength="60" placeholder="Ex. : Awa Mode"></label>'+
   '<label class="lbl">Numéro WhatsApp<input class="in" id="c-wa" name="phone" type="tel" required placeholder="07 XX XX XX XX"></label>'+
