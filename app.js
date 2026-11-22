@@ -210,7 +210,7 @@ async function loadAll(){
     const [st,shops,prods]=await Promise.all([q(sb.from('settings').select('*').eq('id',1).single()),q(sb.from('shops').select('*').order('created_at')),q(sb.from('products').select('*').order('created_at',{ascending:false}))]);
     S.settings=st;S.settings.paiement=S.settings.paiement||{};S.shops=shops;S.products=prods;S.role='visiteur';S.orders=[];S.txs=[];S.priv={};S.payments=[];S.reports=[];S.blacklist=[];S.versements=[];S.commerciaux=[];
     const [rv,bn]=await Promise.all([safe(sb.from('reviews').select('*').order('created_at',{ascending:false}).limit(3000)),safe(sb.from('banners').select('*').order('ordre').order('created_at',{ascending:false}))]);
-    S.reviews=rv;S.banners=bn;S.aide=await safe(sb.from('aide').select('*').order('ordre').order('created_at'));S.best={};(await safe(sb.rpc('meilleures_ventes'))).forEach(x=>{S.best[x.pid]=x.n;});S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
+    S.reviews=rv;S.banners=bn;S.annonces=await safe(sb.from('annonces').select('*').order('created_at',{ascending:false}).limit(30));S.aide=await safe(sb.from('aide').select('*').order('ordre').order('created_at'));S.best={};(await safe(sb.rpc('meilleures_ventes'))).forEach(x=>{S.best[x.pid]=x.n;});S.points=await safe(sb.from('points_vente').select('*').order('created_at'));S.conf={};(await safe(sb.rpc('stats_confiance'))).forEach(x=>S.conf[x.shop_id]=x);
     if(S.user){
       const prof=await q(sb.from('profiles').select('role').eq('id',S.user.id).maybeSingle());
       S.role=prof&&prof.role==='admin'?'admin':'vendeur';
@@ -434,7 +434,7 @@ function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
   return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="icon-btn" href="#compte" aria-label="Mon compte">'+ic('user',20,S.user?'#0E7A5F':'#5B21B6')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
-  storiesHTML()+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
+  storiesHTML()+annonceHTML('clients')+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label></section>'+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
   bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+'<a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
@@ -636,7 +636,7 @@ function vvAccueil(s){
   '<div class="kpis">'+kpi(F(caP),'Ventes confirmées','','hero')+kpi(Op.length,'Commandes')+kpi((Op.length?Math.round(cf.length/Op.length*100):0)+' %','Taux de confirmation')+kpi(cf.length?F(caP/cf.length):'0 F','Panier moyen')+kpi(F(prods.reduce((a,p)=>a+p.prix*Math.max(0,p.stock),0)),'Valeur du stock')+kpi(Op.filter(o=>o.statut==='envoyee').length,'À confirmer')+(rating(s.id).n?kpi(rating(s.id).avg.toFixed(1)+' ★','Note clients ('+rating(s.id).n+' avis)'):'')+'</div>'+
   vchart(D||30,myO)+'<div class="gridf">'+rankList('Mes produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]),'Partagez votre lien pour recevoir vos premières commandes.')+
   donut('Mes commandes',[['À confirmer',Op.filter(o=>o.statut==='envoyee').length,'#FF7A1A'],['Confirmées',cf.length,'#0E7A5F'],['Annulées',Op.filter(o=>o.statut==='annulee').length,'#C9C2DA']])+'</div>';
-  return premiersPas(s)+dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
+  return annonceHTML('vendeurs')+premiersPas(s)+dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
   (s.verification!=='verifie'?'<div class="warn"><b>'+(s.verification==='refuse'?'Vérification refusée.':'Vérification en attente.')+'</b> '+(s.verification==='refuse'&&s.motif_refus?esc(s.motif_refus)+' ':'')+'Ajoutez votre numéro de CNI dans « Réglages ». Le badge bleu rassure les clients.</div>':'<div class="note">Votre boutique est vérifiée '+VERIF+'</div>')+
   '<div class="card stack"><h2 style="font-size:16px">Mon lien à partager</h2><div class="in ell" style="display:flex;align-items:center;font-size:13px">'+esc(shopUrl(s))+'</div><div class="grid2"><button type="button" class="btn btn-v btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16,'#fff')+'Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Partager</a></div><button type="button" class="btn btn-o btn-s btn-block" data-a="shopShare">'+ic('image',16)+'Image de ma boutique pour le statut</button></div>'+
   ((low||out)?'<div class="warn">'+(low?low+' produit(s) en stock bas. ':'')+(out?out+' en rupture.':'')+' <button type="button" class="btn btn-w btn-s" data-a="vtab" data-id="stock" style="margin-left:6px">Voir le stock</button></div>':'')+
@@ -698,6 +698,18 @@ function vvCommandes(s){
   (o.client_tel?fiabHTML(o.client_tel,s.id):'')+(o.statut==='confirmee'?recuBlock(o,s)+livBlock(o,s):'')+
   (o.statut==='envoyee'?'<div class="grid2"><button type="button" class="btn btn-g btn-s" data-a="confOrder" data-id="'+o.id+'">Confirmer la vente</button><button type="button" class="btn btn-w btn-s" data-a="cancelOrder" data-id="'+o.id+'">Annuler</button></div>':'')+'</div>').join(''):'<div class="card muted">Pas encore de commande. Partagez votre lien sur vos statuts.</div>');
 }
+/* ---------- ANNONCES DE L'ADMIN ---------- */
+const CIBLES={tous:'Tout le monde',vendeurs:'Vendeurs',clients:'Clients'};
+function annonceHTML(pour){const vu=lsGet('gbairai-ann-vu',[]),lim=Date.now()-7*864e5;
+  const a=(S.annonces||[]).find(x=>(x.cible==='tous'||x.cible===pour)&&new Date(x.created_at).getTime()>lim&&!vu.includes(x.id));if(!a)return '';
+  return '<section class="annonce"><div class="row between" style="align-items:flex-start"><span class="small" style="font-weight:800;letter-spacing:.4px">📣 ANNONCE · '+esc(S.settings.nom||'Gbairai Market')+'</span><button type="button" class="linkbtn" style="color:inherit" data-a="annVu" data-id="'+a.id+'" aria-label="Fermer">✕</button></div><b>'+esc(a.titre)+'</b>'+(a.texte?'<p>'+esc(a.texte)+'</p>':'')+(a.lien?'<a class="btn btn-w btn-s" href="'+esc(a.lien)+'" data-a="annVu" data-id="'+a.id+'">Voir ›</a>':'')+'</section>';}
+function aAnnonces(){const L=S.annonces||[];
+  return '<form class="card stack" data-f="annonce" style="max-width:640px"><h2 style="font-size:17px">📣 Envoyer une annonce</h2><p class="small muted" style="margin:0">Elle part en <b>notification</b> sur les téléphones qui ont activé les alertes, et elle s\'affiche aussi <b>dans l\'appli</b> pendant 7 jours pour tout le monde.</p>'+
+  '<label class="lbl">Pour qui ?<div class="seg">'+Object.keys(CIBLES).map((k,i)=>'<label class="segr"><input type="radio" name="cible" value="'+k+'"'+(i?'':' checked')+'><span>'+CIBLES[k]+'</span></label>').join('')+'</div></label>'+
+  '<label class="lbl">Titre<input class="in" name="titre" required maxlength="80" placeholder="Ex. : Nouveau : les reçus de vente !"></label><label class="lbl">Message<textarea class="in" name="texte" rows="3" maxlength="300" style="height:auto;padding:10px 14px" placeholder="Ex. : Envoyez un reçu à vos clients en 1 clic. Allez dans Commandes."></textarea></label>'+
+  '<label class="lbl">Quand on touche la notification, ouvrir<select class="in" name="lien"><option value="#accueil">L\'accueil</option><option value="#aide">La page Aide</option><option value="#vendeur">La page vendeur</option><option value="#rayons">Les rayons</option></select></label>'+
+  (ui.annRes?'<div class="good small">'+esc(ui.annRes)+'</div>':'')+'<button class="btn btn-v btn-block" type="submit">📣 Envoyer maintenant</button></form>'+
+  '<div class="sec-title"><h2>Annonces envoyées</h2><span class="cnt-pill">'+L.length+'</span></div>'+(L.length?'<div class="card" style="padding:4px 14px;max-width:760px">'+L.map(a=>'<div class="row between" style="padding:10px 0;border-top:1px solid var(--line);gap:10px"><span style="min-width:0"><b>'+esc(a.titre)+'</b><span class="small muted" style="display:block">'+esc(dfr(a.created_at))+' · '+esc(CIBLES[a.cible]||a.cible)+' · '+a.envoye+' notification'+(a.envoye>1?'s':'')+'</span></span><button type="button" class="btn btn-r btn-s" data-a="delAnn" data-id="'+a.id+'" aria-label="Supprimer">'+ic('trash',14)+'</button></div>').join('')+'</div>':'<div class="card muted" style="max-width:760px">Aucune annonce pour l\'instant.</div>');}
 /* ---------- AIDE : page, visite guidée, bouton ?, premiers pas ---------- */
 const TAB_HELP={accueil:['📊 Vos chiffres du jour et du mois.','🔔 Les messages et commandes à traiter.','✅ « Premiers pas » vous guide jusqu\'à la 1re vente.'],
   messages:['💬 Les questions des clients posées dans l\'appli.','✍️ Touchez une discussion pour répondre.','📱 Le client peut aussi vous écrire sur WhatsApp.'],
@@ -1012,11 +1024,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['aide','Aide'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -1292,6 +1304,8 @@ const A={
   stock:t=>{const p=prodById(t.dataset.id);const v=Math.max(0,p.stock+(+t.dataset.d));p.stock=v;render(true);act(()=>q(sb.from('products').update({stock:v}).eq('id',p.id)));},
   periode:t=>{ui.caissePeriode=t.dataset.id;render(true);},
   releve:t=>{ui.rel=t.dataset.id;render(true);},
+  annVu:t=>{const v=lsGet('gbairai-ann-vu',[]);v.push(t.dataset.id);lsSet('gbairai-ann-vu',v.slice(-50));render(true);},
+  delAnn:t=>act(()=>q(sb.from('annonces').delete().eq('id',t.dataset.id)),'Annonce supprimée'),
   tabHelp:()=>{ui.tabHelp=!ui.tabHelp;render(true);},
   aidePub:t=>{ui.aidePub=t.dataset.id;ui.aideOpen=null;render(true);},
   aideOpen:t=>{ui.aideOpen=ui.aideOpen===t.dataset.id?null:t.dataset.id;render(true);},
@@ -1377,7 +1391,7 @@ document.addEventListener('click',e=>{
   const f=A[t.dataset.a];if(f)f(t,e);
 });
 /* Code image obligatoire avant toute suppression */
-const DEL=new Set(['delAide','delProd','delVers','delPoint','delCm','delTx','bnDel','blDel','rvDel','delShop','delCat','delQ']);
+const DEL=new Set(['delAnn','delAide','delProd','delVers','delPoint','delCm','delTx','bnDel','blDel','rvDel','delShop','delCat','delQ']);
 let delPending=null,delCode='';
 function delDraw(){const cv=document.getElementById('delcv');if(!cv)return;const A_='ABCDEFGHJKMNPRSTUVWXYZ23456789';delCode='';for(let i=0;i<5;i++)delCode+=A_[Math.floor(Math.random()*A_.length)];
   const x=cv.getContext('2d'),w=cv.width,h=cv.height,g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#EDE7FB');g.addColorStop(1,'#FFE9D6');x.fillStyle=g;x.fillRect(0,0,w,h);
@@ -1434,6 +1448,11 @@ async function createShop(d){
   await q(sb.from('shop_private').insert({shop_id:ins.id}));
 }
 const FORMS={
+  annonce:(d,f)=>{if(ui.busy)return;const row={titre:String(d.titre||'').trim().slice(0,80),texte:String(d.texte||'').trim().slice(0,300),lien:/^#[\w-]{1,80}$/.test(d.lien||'')?d.lien:'',cible:['tous','vendeurs','clients'].includes(d.cible)?d.cible:'tous'};
+    if(!row.titre){toast('Écrivez un titre.');return;}
+    act(async()=>{const r=await q(sb.from('annonces').insert(row).select('id').single());let n=null;
+      try{const x=await fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({kind:'annonce',annonce_id:r.id})});const j=await x.json();n=j&&typeof j.envoye==='number'?j.envoye:null;if(j&&j.pret===false)n=-1;}catch(e){}
+      ui.annRes=n===-1?'Annonce publiée dans l\'appli. Notifications pas encore prêtes (voir Paramètres → Notifications).':n===null?'Annonce publiée dans l\'appli.':'Annonce publiée et envoyée sur '+n+' téléphone'+(n>1?'s':'')+'.';f.reset();},'Annonce envoyée');},
   aide:(d,f)=>act(async()=>{const row={type:d.type==='video'?'video':'guide',public:d.public==='client'?'client':'vendeur',titre:String(d.titre||'').trim().slice(0,100),icone:String(d.icone||'💡').trim().slice(0,8)||'💡',etapes:String(d.etapes||'').split('\n').map(x=>x.trim()).filter(Boolean).slice(0,15),video_url:String(d.video_url||'').trim().slice(0,400),duree:String(d.duree||'').trim().slice(0,10),ordre:Math.round(n0(d.ordre))};
     if(!row.titre)throw new Error('Indiquez un titre.');if(row.type==='video'&&!/^https?:\/\//.test(row.video_url))throw new Error('Collez le lien de la vidéo (YouTube, TikTok, Facebook…).');
     const id=f.dataset.id;await q(id?sb.from('aide').update(row).eq('id',id):sb.from('aide').insert(row));ui.aEditAide=null;},'Aide enregistrée'),

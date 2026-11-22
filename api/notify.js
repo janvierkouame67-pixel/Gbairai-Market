@@ -1,6 +1,7 @@
 // Gbairai Market : envoie les notifications aux clients.
 //  - kind "boutique" : nouvel article ou promo d'une boutique → ses abonnés (5 par jour max)
 //  - kind "commande" : nouvelle étape d'une commande → le client qui suit cette commande
+//  - kind "annonce" : annonce de l'admin → vendeurs, clients ou tout le monde
 // Nécessite dans Vercel : SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
 const { sendPush } = require('./_webpush');
 const URL_SB = process.env.SUPABASE_URL || 'https://wrowhozasjjszslrttts.supabase.co';
@@ -92,6 +93,23 @@ module.exports = async (req, res) => {
       if (!subs.length) return send(res, 200, { envoye: 0 });
       await fetch(URL_SB + '/rest/v1/push_log', { method: 'POST', headers: H(), body: JSON.stringify({ shop_id: s.id }) });
       const n = await pushAll(subs, { title: s.nom, body: (promo ? '⚡ Promo : ' : '🆕 Nouveau : ') + p.nom + ' à ' + F(p.prix), url: '/#produit-' + p.id, image: p.photo || undefined, tag: 'shop-' + s.id });
+      return send(res, 200, { envoye: n });
+    }
+    if (body.kind === 'annonce') {
+      if (!isAdmin) return send(res, 403, { error: 'Réservé à l\'administrateur.' });
+      if (!UUID.test(body.annonce_id || '')) return send(res, 400, { error: 'Annonce invalide.' });
+      const a = (await get('annonces?select=*&id=eq.' + body.annonce_id))[0];
+      if (!a) return send(res, 404, { error: 'Annonce introuvable.' });
+      if (a.envoye > 0) return send(res, 200, { envoye: a.envoye, deja: true });
+      const filtre = a.cible === 'vendeurs' ? '&vendeur_shop=not.is.null' : a.cible === 'clients' ? '&vendeur_shop=is.null' : '';
+      const lien = /^#[\w-]{1,80}$/.test(a.lien) ? '/' + a.lien : '/#accueil';
+      let n = 0;
+      for (let from = 0; from < 20000; from += 1000) {
+        const subs = await get('push_subs?select=endpoint,p256dh,auth' + filtre + '&order=endpoint&offset=' + from + '&limit=1000');
+        for (let i = 0; i < subs.length; i += 100) n += await pushAll(subs.slice(i, i + 100), { title: '📣 ' + a.titre, body: a.texte || '', url: lien, tag: 'annonce-' + a.id });
+        if (subs.length < 1000) break;
+      }
+      await fetch(URL_SB + '/rest/v1/annonces?id=eq.' + a.id, { method: 'PATCH', headers: H(), body: JSON.stringify({ envoye: n }) });
       return send(res, 200, { envoye: n });
     }
     return send(res, 400, { error: 'Demande inconnue.' });
