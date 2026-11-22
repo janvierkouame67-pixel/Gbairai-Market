@@ -1,6 +1,35 @@
 {
   "rewrites": [
-    { "source": "/b/:slug", "destination": "/api/share?b=:slug" },
-    { "source": "/p/:id", "destination": "/api/share?p=:id" }
+    {
+      "source": "/b/:slug",
+      "destination": "/api/share?b=:slug"
+    },
+    {
+      "source": "/p/:id",
+      "destination": "/api/share?p=:id"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), geolocation=(self), microphone=(), payment=()"
+        }
+      ]
+    }
   ]
 }

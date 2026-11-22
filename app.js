@@ -794,7 +794,7 @@ function coverBg(s){const p=pal(s.couleur),c=s.couverture||'';
   if(c==='wax')return 'radial-gradient(circle at 50% 50%,rgba(255,255,255,.55) 0 5px,transparent 6px) 0 0/28px 28px,repeating-linear-gradient(45deg,'+p[1]+' 0 14px,#FF7A1A 14px 28px,#0E7A5F 28px 42px,#FACC15 42px 56px)';
   if(c==='bogolan')return 'repeating-linear-gradient(90deg,transparent 0 18px,rgba(232,213,181,.9) 18px 21px),repeating-linear-gradient(0deg,#3F2A1D 0 16px,#5C3D2A 16px 22px,#E8D5B5 22px 25px)';
   if(c==='degrade')return 'linear-gradient(135deg,'+p[1]+',#FF7A1A)';
-  if(/^https?:/.test(c))return 'linear-gradient(0deg,rgba(0,0,0,.35),transparent 60%),url(\''+esc(c)+'\') center/cover';
+  if(/^https:\/\/[^'"()<>\\\s]+$/.test(c))return 'linear-gradient(0deg,rgba(0,0,0,.35),transparent 60%),url(\''+esc(c)+'\') center/cover';
   return lin(s.couleur);}
 function themeCard(s){const c=s.couverture||'';
   return '<section class="card stack"><h3 style="font-size:15px">🎨 Thème de ma boutique</h3><div class="small muted">Couleur des boutons et de la page</div><div class="row wrapx" style="gap:10px">'+PAL.map((p,i)=>'<button type="button" class="swatch'+((s.couleur||0)%PAL.length===i?' on':'')+'" style="background:'+p[1]+'" data-a="setCouleur" data-v="'+i+'" aria-label="Couleur '+(i+1)+'"></button>').join('')+'</div>'+
