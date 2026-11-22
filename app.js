@@ -1051,11 +1051,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['contacts','💬 Contacts'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,contacts:aContacts,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -1094,6 +1094,47 @@ function aTableau(){
   '<section class="card stack"><h2 style="font-size:17px">À vérifier</h2>'+(wait.map(s=>'<div class="row between"><span class="row">'+avatar(s,34)+esc(s.nom)+'</span><button type="button" class="btn btn-g btn-s" data-a="aOpen" data-id="'+s.id+'">Ouvrir</button></div>').join('')||'<p class="muted" style="margin:0">Rien en attente.</p>')+'</section></div>';
 }
 const badgeVerif=s=>s.verification==='verifie'?'<span class="badge b-blue">Vérifié</span>':s.verification==='refuse'?'<span class="badge b-grey">Refusé</span>':'<span class="badge b-amber">En attente</span>';
+const CT_COLS=['#6D28D9','#FF7A1A','#0E7A5F','#2563EB','#DB2777','#E11D48','#0891B2','#CA8A04','#7C3AED'];
+function ctCol(k){let h=0;for(const c of String(k))h=(h*31+c.charCodeAt(0))>>>0;return CT_COLS[h%CT_COLS.length];}
+function quand(d){if(!d)return '';const t=new Date(d),n=new Date(),hm=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+  const j=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(),diff=Math.round((j(n)-j(t))/864e5);
+  return diff<=0?'à '+hm:diff===1?'hier à '+hm:'le '+String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+(t.getFullYear()!==n.getFullYear()?'/'+String(t.getFullYear()).slice(2):'');}
+function ctAv(img,nom,key,on,big){return '<div class="tav'+(big?' big':'')+'" style="background:'+(img?'#fff':ctCol(key))+'">'+(img?'<img src="'+esc(img)+'" alt="" loading="lazy">':esc(initials(nom||'?')))+(on?'<i class="on" aria-label="En ligne"></i>':'')+'</div>';}
+function ctShopStatus(s){return enLigne(s)?'<span class="live">en ligne</span>':s.vu_le?'<span>'+(Date.now()-new Date(s.vu_le)<864e5*2?'en ligne ':'vu ')+quand(s.vu_le)+'</span>':'<span>jamais connecté</span>';}
+function ctShopBadge(s){return s.statut==='suspendu'?'<span class="badge b-red">Suspendu</span>':s.verification==='attente'?'<span class="badge b-orange">En attente</span>':s.formule==='pro'?'<span class="badge b-violet">PRO</span>':s.verification==='verifie'?'<span class="badge b-green">✅ Vérifié</span>':'';}
+function aContacts(){if(ui.ctSel)return ctFiche();
+  const t=ui.ctTab||'vendeurs',qq=(ui.ctQ||'').trim().toLowerCase();
+  const V=S.shops.slice().sort((a,b)=>(enLigne(b)-enLigne(a))||String(b.vu_le||'').localeCompare(String(a.vu_le||'')));
+  const C=clientsAgg(S.orders).sort((a,b)=>String(b.last).localeCompare(String(a.last)));
+  const vRow=s=>'<button type="button" class="trow" data-a="ctOpen" data-id="v:'+s.id+'">'+ctAv(s.logo,s.nom,s.id,enLigne(s))+'<span class="tx"><b>'+esc(s.nom)+'</b>'+ctShopStatus(s)+'</span>'+ctShopBadge(s)+'</button>';
+  const cKey=c=>c.tel?waNum(c.tel):'nom:'+String(c.nom).toLowerCase();
+  const cRow=c=>'<button type="button" class="trow" data-a="ctOpen" data-id="c:'+esc(cKey(c))+'">'+ctAv(null,c.nom||'Client',cKey(c),false)+'<span class="tx"><b>'+esc(c.nom||'Client')+'</b><span>a commandé '+quand(c.last)+(c.shops.size?' · '+esc([...c.shops].join(', ')):'')+'</span></span><span class="tot num">'+F(c.total)+'</span></button>';
+  const mV=V.filter(s=>!qq||(s.nom+' '+s.whatsapp+' '+place(s)).toLowerCase().includes(qq)),mC=C.filter(c=>!qq||(c.nom+' '+c.tel+' '+c.adresse).toLowerCase().includes(qq));
+  const tabs=[['tous','Tous',V.length+C.length],['vendeurs','Vendeurs',V.length],['clients','Clients',C.length]];
+  let h='<section class="card ctbox"><div class="row between"><h2 class="ct-h">Contacts</h2><button type="button" class="icon-btn" data-a="cliCSVall" aria-label="Télécharger les clients en Excel" title="Télécharger les clients (Excel)">⬇</button></div>'+
+  '<div class="cttabs">'+tabs.map(x=>'<button type="button" class="'+(t===x[0]?'on':'')+'" data-a="ctTab" data-id="'+x[0]+'">'+x[1]+' <em>'+x[2]+'</em></button>').join('')+'</div>'+
+  '<label class="search" style="margin:8px 0 4px;box-shadow:none;border:1.5px solid #E2D9F8">'+ic('search',18,'#6B5B8C')+'<input type="search" placeholder="Nom, numéro, quartier…" value="'+esc(ui.ctQ||'')+'" data-i="ctQ" aria-label="Chercher un contact"></label><div class="tlist">';
+  if(t!=='clients'){if(t==='tous'&&mV.length)h+='<div class="tsec">Vendeurs · '+S.shops.filter(enLigne).length+' en ligne</div>';h+=mV.map(vRow).join('');}
+  if(t!=='vendeurs'){if(t==='tous'&&mC.length)h+='<div class="tsec">Clients</div>';h+=mC.map(cRow).join('');}
+  if(!(t!=='clients'&&mV.length)&&!(t!=='vendeurs'&&mC.length))h+='<p class="muted" style="text-align:center;padding:20px">Aucun contact'+(qq?' pour « '+esc(qq)+' »':'')+'.</p>';
+  return h+'</div></section>';}
+function ctFiche(){const [k,id]=[ui.ctSel.slice(0,1),ui.ctSel.slice(2)];
+  const kv=(a,b)=>'<div class="kv"><span>'+a+'</span><b>'+b+'</b></div>';
+  const act=(href,ico,bg,lab,data)=>(href?'<a target="_blank" rel="noopener" href="'+href+'"':'<button type="button" '+data)+' class="ctact"><i style="background:'+bg+'">'+ico+'</i>'+lab+(href?'</a>':'</button>');
+  let h='<section class="card ctfiche"><div class="row"><button type="button" class="icon-btn" data-a="ctBack" aria-label="Retour aux contacts">'+ic('back')+'</button><h2 style="font-size:18px;margin:0">Contact</h2></div>';
+  if(k==='v'){const s=shopById(id);if(!s){ui.ctSel=null;return aContacts();}
+    const ords=S.orders.filter(o=>o.shop_id===s.id),mois=new Date().toISOString().slice(0,7),vm=sumT(ords.filter(o=>o.statut==='confirmee'&&String(o.created_at).slice(0,7)===mois));
+    h+='<div class="cthead">'+ctAv(s.logo,s.nom,s.id,enLigne(s),true)+'<h2>'+esc(s.nom)+'</h2><div class="ctst">'+ctShopStatus(s)+'</div><div class="small muted">'+esc(place(s))+' · Inscrite le '+esc(dfr(new Date(s.created_at)))+'</div></div>'+
+    '<div class="ctacts">'+act('https://wa.me/'+waNum(s.whatsapp),'💬','#0E7A5F','WhatsApp')+act('tel:'+esc(String(s.telephone||s.whatsapp).replace(/[^\d+]/g,'')),'📞','#2563EB','Appeler')+act('#boutique-'+esc(s.slug),'🏪','#6D28D9','Boutique')+act(null,'📣','#FF7A1A','Annonce','data-a="atab" data-id="annonces"')+'</div>'+
+    '<div class="ctinfo">'+kv('WhatsApp',esc(s.whatsapp||'—'))+kv('Formule',s.formule==='pro'?'<span class="badge b-violet">PRO</span>'+(s.pro_fin?' jusqu\'au '+esc(dfr(new Date(s.pro_fin))):''):'Gratuit')+kv('Vérification',s.verification==='verifie'?'<span class="badge b-green">✅ Vérifiée</span>':s.verification==='refuse'?'<span class="badge b-red">Refusée</span>':'<span class="badge b-orange">En attente</span>')+kv('Statut',s.statut==='suspendu'?'<span class="badge b-red">Suspendue</span>':'Active')+kv('Produits',shopProducts(s.id).length)+kv('Ventes ce mois',F(vm))+kv('Clients',clientsAgg(ords).length)+'</div>'+
+    '<div class="grid2"><button type="button" class="btn btn-w" data-a="aSusp" data-id="'+s.id+'">'+(s.statut==='actif'?'⏸ Suspendre':'▶ Réactiver')+'</button><button type="button" class="btn btn-w" data-a="aOpen" data-id="'+s.id+'">⚙ Gérer</button></div>';
+  }else{const C=clientsAgg(S.orders),c=C.find(x=>(x.tel?waNum(x.tel):'nom:'+String(x.nom).toLowerCase())===id);if(!c){ui.ctSel=null;return aContacts();}
+    const os=S.orders.filter(o=>(o.client_tel?waNum(o.client_tel):'nom:'+String(o.client_nom).toLowerCase())===id).slice(0,8);
+    h+='<div class="cthead">'+ctAv(null,c.nom||'Client',id,false,true)+'<h2>'+esc(c.nom||'Client')+'</h2><div class="ctst"><span>a commandé '+quand(c.last)+'</span></div><div class="small muted">Client depuis le '+esc(dfr(new Date(c.first)))+'</div></div>'+
+    (c.tel?'<div class="ctacts">'+act('https://wa.me/'+waNum(c.tel),'💬','#0E7A5F','WhatsApp')+act('tel:'+esc(String(c.tel).replace(/[^\d+]/g,'')),'📞','#2563EB','Appeler')+'</div>':'')+
+    '<div class="ctinfo">'+kv('Téléphone',esc(c.tel||'—'))+kv('Adresse',esc(c.adresse||'—'))+kv('Commandes',c.n+' (dont '+c.ok+' confirmée'+(c.ok>1?'s':'')+')')+kv('Total dépensé',F(c.total))+kv('Boutiques',esc([...c.shops].join(', ')||'—'))+'</div>'+
+    '<h3 style="font-size:15px;margin:6px 0 0">Dernières commandes</h3><div class="ctinfo">'+os.map(o=>kv(esc(quand(o.created_at))+' · '+esc((shopById(o.shop_id)||{}).nom||''),F(o.total)+' <span class="small muted">'+({envoyee:'envoyée',confirmee:'confirmée',annulee:'annulée'}[o.statut]||'')+'</span>')).join('')+'</div>';}
+  return h+'</section>';}
 function aVendeurs(){
   const qq=ui.aQ.toLowerCase();
   const list=S.shops.filter(s=>(ui.aFilter==='tous'||(ui.aFilter==='attente'&&s.verification==='attente')||(ui.aFilter==='pro'&&s.formule==='pro')||(ui.aFilter==='suspendu'&&s.statut==='suspendu')||(ui.aFilter==='enligne'&&enLigne(s)))&&(!qq||(s.nom+' '+s.quartier+' '+s.whatsapp).toLowerCase().includes(qq)));
@@ -1404,7 +1445,10 @@ const A={
   aReset:t=>act(async()=>{const r=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({shop_id:t.dataset.id})});
     let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||'Service indisponible. Vérifiez la clé dans Vercel.');ui.aPwd={shop:t.dataset.id,pw:j.password};},'Nouveau mot de passe créé'),
   per:t=>{ui.per=Number(t.dataset.id);render(true);},
-  atab:t=>{ui.aTab=t.dataset.id;ui.adminShop=null;ui.confirm=null;ui.edit=null;ui.photo=undefined;ui.extras=undefined;render();},
+  ctTab:t=>{ui.ctTab=t.dataset.id;render();},
+  ctOpen:t=>{ui.ctSel=t.dataset.id;render();window.scrollTo(0,0);},
+  ctBack:()=>{ui.ctSel=null;render();},
+  atab:t=>{ui.ctSel=null;ui.aTab=t.dataset.id;ui.adminShop=null;ui.confirm=null;ui.edit=null;ui.photo=undefined;ui.extras=undefined;render();},
   aFilter:t=>{ui.aFilter=t.dataset.id;render(true);},
   aOpen:t=>{ui.aTab='vendeurs';ui.adminShop=t.dataset.id;ui.confirm=null;render();},
   aClose:()=>{ui.adminShop=null;ui.confirm=null;render();},
@@ -1447,6 +1491,7 @@ document.addEventListener('input',e=>{
   const ck=e.target.dataset&&e.target.dataset.client;if(ck){client[ck]=e.target.value;lsSet('gbairai-client',client);refreshOrderLinks();return;}
   const k=e.target.dataset&&e.target.dataset.i;if(!k)return;ui[k]=e.target.value;
   if(k==='q')document.getElementById('results').innerHTML=results();
+  else if(k==='ctQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="ctQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aideQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="aideQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aQ'){const pos=e.target.selectionStart;render(true);const el=document.getElementById('aq');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
 });

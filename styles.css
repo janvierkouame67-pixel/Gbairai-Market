@@ -586,3 +586,21 @@ a.badge{text-decoration:none}
 .pw-ic{font-size:22px;flex-shrink:0}.promowa>span:nth-child(2){flex:1}
 :root[data-theme="dark"] .promowa{background:linear-gradient(135deg,#0B3B2A,#0F2E25);border-color:#14532D;color:#D1FAE5}
 .promowa,.promowa a{text-decoration:none}
+
+/* Contacts admin (façon Telegram) */
+.ctbox{padding:14px 0 6px}.ctbox>.row,.ctbox .cttabs,.ctbox .search{margin-left:14px!important;margin-right:14px!important}
+.ct-h{margin:0;font-size:22px;color:#5B21B6}
+.cttabs{display:flex;gap:4px;margin-top:10px;background:#F4F1FB;border-radius:999px;padding:4px}.cttabs button{flex:1;border:0;background:none;padding:9px 4px;border-radius:999px;font:inherit;font-weight:700;font-size:13.5px;color:#6B5B8C;cursor:pointer}.cttabs button.on{background:#EDE7FB;color:#5B21B6;box-shadow:0 2px 0 #DDD3F7}.cttabs em{font-style:normal;font-size:11px;opacity:.75}
+.tlist{display:flex;flex-direction:column}.tsec{font-size:12px;font-weight:800;color:#6B5B8C;text-transform:uppercase;letter-spacing:.4px;padding:12px 16px 4px}
+.trow{display:flex;align-items:center;gap:13px;padding:9px 16px;border:0;background:none;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}.trow:hover,.trow:focus-visible{background:#F7F4FE}
+.tav{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;font-family:Sora,sans-serif;font-weight:800;font-size:18px;flex-shrink:0;position:relative}.tav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.tav .on{position:absolute;right:1px;bottom:1px;width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #fff}
+.tav.big{width:96px;height:96px;font-size:30px}.tav.big .on{width:20px;height:20px;border-width:3px;right:4px;bottom:4px}
+.tx{flex:1;min-width:0;display:block}.tx b{display:block;font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tx>span{display:block;font-size:13px;color:#8A829C;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live{color:#7C3AED!important;font-weight:600}.tot{font-weight:700;font-size:13px}
+.badge.b-violet{background:#EDE7FB;color:#5B21B6}.badge.b-red{background:#FEE2E2;color:#991B1B}
+.ctfiche{display:flex;flex-direction:column;gap:12px}.cthead{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px}.cthead h2{margin:6px 0 0;font-size:22px}.ctst{font-size:14px;color:#8A829C}
+.ctacts{display:flex;gap:8px;justify-content:center}.ctact{flex:1;max-width:90px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12px;font-weight:700;border:0;background:none;font-family:inherit;color:inherit;cursor:pointer;text-decoration:none}.ctact i{font-style:normal;width:48px;height:48px;border-radius:16px;display:grid;place-items:center;font-size:20px;box-shadow:0 4px 0 rgba(0,0,0,.18)}
+.ctinfo{border:1.5px solid #EEE9FB;border-radius:16px;padding:2px 14px}.kv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1EDFB;font-size:14px}.kv:last-child{border:0}.kv>span{color:#6B5B8C}.kv>b{text-align:right}
+:root[data-theme="dark"] .cttabs{background:#241A3D}:root[data-theme="dark"] .cttabs button.on{background:#3B2A66;color:#E9DDFF;box-shadow:none}:root[data-theme="dark"] .ct-h{color:#C4B5FD}
+:root[data-theme="dark"] .trow:hover{background:#241A3D}:root[data-theme="dark"] .tav .on{border-color:#1B1033}:root[data-theme="dark"] .ctinfo,:root[data-theme="dark"] .kv{border-color:#3B2F5C}
