@@ -652,7 +652,7 @@ function vvAccueil(s){
   vchart(D||30,myO)+'<div class="gridf">'+rankList('Mes produits les plus commandés',topProducts(Op).map(p=>[esc(p.nom),p.q+' × · '+F(p.v)]),'Partagez votre lien pour recevoir vos premières commandes.')+
   donut('Mes commandes',[['À confirmer',Op.filter(o=>o.statut==='envoyee').length,'#FF7A1A'],['Confirmées',cf.length,'#0E7A5F'],['Annulées',Op.filter(o=>o.statut==='annulee').length,'#C9C2DA']])+'</div>';
   return annonceHTML('vendeurs')+premiersPas(s)+dash+'<div class="grid3"><div class="stat dark"><b class="num">'+prods.length+(isFinite(lim)?'<small style="font-size:12px;opacity:.8">/'+lim+'</small>':'')+'</b><span>Produits</span></div><div class="stat"><b class="num">'+S.orders.filter(o=>o.shop_id===s.id).length+'</b><span>Commandes</span></div><div class="stat"><b class="num" style="font-size:16px">'+fmtN(rec-dep)+'</b><span>Bénéfice du mois</span></div></div>'+
-  (s.verification!=='verifie'?'<div class="warn"><b>'+(s.verification==='refuse'?'Vérification refusée.':'Vérification en attente.')+'</b> '+(s.verification==='refuse'&&s.motif_refus?esc(s.motif_refus)+' ':'')+'Ajoutez votre numéro de CNI dans « Réglages ». Le badge bleu rassure les clients.</div>':'<div class="note">Votre boutique est vérifiée '+VERIF+'</div>')+
+  (s.verification!=='verifie'?'<div class="warn"><b>'+(s.verification==='refuse'?'Vérification refusée.':'Vérification en attente.')+'</b> '+(s.verification==='refuse'&&s.motif_refus?esc(s.motif_refus)+' ':'')+'Faites vérifier votre boutique dans « Réglages » (pièce + photo). Le badge rassure les clients.</div>':'<div class="note">Votre boutique est vérifiée '+VERIF+'</div>')+
   '<div class="card stack"><h2 style="font-size:16px">Mon lien à partager</h2><div class="in ell" style="display:flex;align-items:center;font-size:13px">'+esc(shopUrl(s))+'</div><div class="grid2"><button type="button" class="btn btn-v btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16,'#fff')+'Copier</button><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(shopShareText(s))+'">'+ic('wa',16,'#fff')+'Partager</a></div><button type="button" class="btn btn-o btn-s btn-block" data-a="shopShare">'+ic('image',16)+'Image de ma boutique pour le statut</button></div>'+
   ((low||out)?'<div class="warn">'+(low?low+' produit(s) en stock bas. ':'')+(out?out+' en rupture.':'')+' <button type="button" class="btn btn-w btn-s" data-a="vtab" data-id="stock" style="margin-left:6px">Voir le stock</button></div>':'')+
   '<div class="card row between"><div><b>Formule '+(s.formule==='pro'?'Pro':'Gratuite')+'</b><div class="small muted">'+(s.formule==='pro'?'Produits illimités'+(s.pro_fin?' · jusqu\'au '+esc(s.pro_fin):''):'Jusqu\'à '+S.settings.limite_gratuit+' produits'+(S.settings.prix_pro?' · Pro : '+esc(S.settings.prix_pro)+' F / mois':''))+'</div></div><button type="button" class="btn '+(s.formule==='pro'?'btn-w':'btn-o')+' btn-s" data-a="vtab" data-id="abonnement">'+(s.formule==='pro'?'Prolonger':'Passer Pro')+'</button></div>'+
@@ -1039,10 +1039,26 @@ function shopFields(s,admin){
   '<h3 style="font-size:15px">Contacts</h3><div class="grid2">'+inp('whatsapp','WhatsApp (commandes)','07 XX XX XX XX','tel')+inp('telegram','Telegram','@nom')+inp('telephone','Téléphone d\'appel','','tel')+inp('email','E-mail','facultatif','email')+inp('facebook','Facebook','lien de la page')+inp('tiktok','TikTok','@compte')+'</div>'+
   '<h3 style="font-size:15px">Localisation et livraison</h3>'+locFields('s',s)+''+inp('adresse','Adresse ou point de repère')+'<div class="grid2">'+inp('livraison_zones','Zones de livraison')+inp('livraison_frais','Frais de livraison (F)')+'</div>'+('paiement_livraison' in s?'<label class="lbl">Paiement à la livraison<select class="in" name="paiement_livraison"><option value="oui"'+(s.paiement_livraison!==false?' selected':'')+'>Oui, j\'accepte (recommandé, inspire confiance)</option><option value="non"'+(s.paiement_livraison===false?' selected':'')+'>Non, je demande le paiement avant</option></select></label>':'');
 }
+const PIECES=[['cni','🪪','CNI'],['passeport','📘','Passeport'],['scolaire','🎓','Carte scolaire'],['consulaire','🏛','Carte consulaire'],['permis','🚗','Permis'],['attestation','📄','Attestation']];
+function verifHTML(s){const pv=S.priv[s.id]||{},vd=ui.vd=ui.vd||{type:'cni',num:''};
+  if(s.verification==='verifie')return '<section class="card stack"><h3 style="font-size:15px">Vérification</h3><div class="good">✅ Votre boutique est vérifiée. Le badge s\'affiche sur votre page.</div></section>';
+  const shot=(k,lab)=>'<label class="vshot'+(vd[k]?' ok':'')+'">'+(vd[k]?'<img src="'+vd[k].url+'" alt="">'+'<span>✔ '+lab+'</span>':'<span class="cam">📷</span><span>'+lab+'</span>')+'<input type="file" accept="image/*" capture="environment" data-file="vd-'+k+'" hidden></label>';
+  return '<section class="card stack" id="verif"><h3 style="font-size:15px">Faire vérifier ma boutique</h3>'+
+  (s.verification==='refuse'?'<div class="warn"><b>Vérification refusée.</b> '+esc(s.motif_refus||'')+' Vous pouvez envoyer de nouvelles photos.</div>':pv.cni?'<div class="warn"><b>⏳ En attente de vérification</b><br><span class="small">'+esc(pv.cni)+'. Réponse en général sous 24 h.</span></div>':'<div class="good">Le badge <b>Vendeur vérifié</b> rassure les clients : ils achètent plus.</div>')+
+  '<b class="small">1. Quelle pièce avez-vous ?</b><div class="vdocs">'+PIECES.map(x=>'<button type="button" class="'+(vd.type===x[0]?'on':'')+'" data-a="vdType" data-id="'+x[0]+'"><i>'+x[1]+'</i>'+x[2]+'</button>').join('')+'</div>'+
+  '<label class="lbl">2. Numéro de la pièce<input class="in" data-i2="vdNum" maxlength="40" value="'+esc(vd.num)+'" placeholder="'+(vd.type==='scolaire'?'Matricule et nom de l\'école':'Ex. : C 0123 4567 89')+'"></label>'+
+  '<b class="small">3. Photos</b><div class="row" style="gap:10px">'+shot('recto','Recto de la pièce')+shot('selfie','Selfie avec la pièce')+'</div>'+
+  '<div class="note small">🔒 Vos photos ne sont <b>pas</b> enregistrées sur le site. Elles partent seulement chez l\'équipe '+esc(S.settings.nom||'Gbairai Market')+', sur WhatsApp.</div>'+
+  '<button type="button" class="btn btn-g btn-block" data-a="vdSend">'+ic('wa',18,'#fff')+'Envoyer à l\'équipe sur WhatsApp</button></section>';}
+function aVerifs(){const L=S.shops.filter(s=>s.verification!=='verifie'&&s.statut!=='suspendu').sort((a,b)=>(!!(S.priv[b.id]||{}).cni)-(!!(S.priv[a.id]||{}).cni)||String(b.created_at).localeCompare(String(a.created_at)));
+  return '<section class="card stack"><h2 style="font-size:17px">Vérifications ('+L.filter(s=>(S.priv[s.id]||{}).cni).length+' à traiter)</h2><div class="note small">Comparez avec les photos reçues sur WhatsApp, puis validez. Au refus, écrivez le motif : le vendeur le voit.</div></section>'+
+  (L.length?L.map(s=>{const pv=S.priv[s.id]||{},r=ui.vdRef===s.id;return '<section class="card stack" style="gap:10px"><div class="row" style="gap:12px">'+ctAv(s.logo,s.nom,s.id,enLigne(s))+'<div style="flex:1;min-width:0"><b>'+esc(s.nom)+'</b><div class="small muted">'+(pv.cni?esc(pv.cni):'Pas encore de pièce envoyée')+'</div></div>'+(s.verification==='refuse'?'<span class="badge b-red">Refusée</span>':'<span class="badge b-orange">En attente</span>')+'</div>'+
+    (r?'<form class="row" style="gap:8px" data-f="vdRefus" data-id="'+s.id+'"><input class="in" name="motif" required maxlength="200" placeholder="Motif : photo floue, nom différent…" style="flex:1"><button class="btn btn-o btn-s" type="submit">Refuser</button><button type="button" class="btn btn-w btn-s" data-a="vdRefOff">✕</button></form>':
+    '<div class="row" style="gap:8px"><button type="button" class="btn btn-g btn-s" style="flex:1" data-a="aVerif" data-id="'+s.id+'">✅ Valider</button><button type="button" class="btn btn-w btn-s" style="flex:1" data-a="vdRefOn" data-id="'+s.id+'">✖ Refuser</button><a class="btn btn-w btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'" aria-label="Écrire au vendeur">💬</a></div>')+'</section>';}).join(''):'<div class="card muted" style="text-align:center">Tous les vendeurs sont vérifiés 🎉</div>');}
 function vvReglages(s){
   const pv=S.priv[s.id]||{};
   return themeCard(s)+prefsHTML()+'<section class="card row" style="gap:14px">'+avatar(s,72)+'<div class="stack" style="gap:8px;min-width:0"><b>Logo de la boutique</b><span class="small muted">Carré de préférence. Il s\'affiche sur l\'accueil et sur votre page.</span><div class="row" style="gap:8px"><label class="btn btn-v btn-s">'+(s.logo?'Changer':'Ajouter mon logo')+'<input type="file" accept="image/*" data-file="logo" hidden></label>'+(s.logo?'<button type="button" class="btn btn-w btn-s" data-a="rmLogo">Retirer</button>':'')+'</div></div></section>'+
-  '<form class="card stack" data-f="shop" data-id="'+s.id+'">'+shopFields(s,false)+'<h3 style="font-size:15px">Vérification</h3><label class="lbl">Numéro de la pièce d\'identité (CNI)<input class="in" id="s-cni" name="cni" value="'+esc(pv.cni)+'" placeholder="C00XXXXXXX"></label><p class="small muted" style="margin:0">Visible seulement par vous et l\'administrateur.</p><button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+
+  '<form class="card stack" data-f="shop" data-id="'+s.id+'">'+shopFields(s,false)+'<button class="btn btn-v btn-block" type="submit">Enregistrer</button></form>'+verifHTML(s)+
   '<form class="card stack" data-f="pwd"><h3 class="row" style="font-size:15px;gap:6px">'+ic('key',16,'#5B21B6')+'Changer mon mot de passe</h3><label class="lbl">Nouveau mot de passe<input class="in" name="password" type="password" required minlength="6" autocomplete="new-password"></label><label class="lbl">Répéter le mot de passe<input class="in" name="password2" type="password" required minlength="6" autocomplete="new-password"></label><button class="btn btn-w btn-block" type="submit">Changer le mot de passe</button></form>'+
   '<button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button>';
 }
@@ -1051,11 +1067,11 @@ function vvReglages(s){
 function vAdmin(){
   if(!S.user)return authForms('Espace administrateur','Connectez-vous avec votre compte administrateur.',false);
   if(!isAdmin())return '<div class="wrap">'+logoHTML()+'<div class="card stack"><h1 style="font-size:19px">Accès réservé</h1><p class="muted" style="margin:0">Ce compte n\'est pas administrateur.</p><button type="button" class="btn btn-w" data-a="logout">Se déconnecter</button></div></div>';
-  const tabs=[['tableau','Tableau de bord'],['contacts','💬 Contacts'],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
+  const tabs=[['tableau','Tableau de bord'],['contacts','💬 Contacts'],['verifs','✅ Vérifications'+((()=>{const n=S.shops.filter(s=>s.verification==='attente'&&(S.priv[s.id]||{}).cni).length;return n?' ('+n+')':'';})())],['vendeurs','Vendeurs'],['paiements','Paiements'],['bannieres','Bannières'],['moderation','Avis et signalements'],['litiges','Litiges'+((S.litiges||[]).length?' ('+S.litiges.length+')':'')],['produits','Produits'],['commandes','Commandes'],['catalogue','Catégories et quartiers'],['annonces','📣 Annonces'],['aide','Aide'],['parametres','Paramètres']];
   const wait=S.shops.filter(s=>s.verification==='attente').length,payW=S.payments.filter(p=>p.statut==='attente').length,repW=S.reports.filter(r=>r.statut==='nouveau').length;
   const h='<div class="wrap wide"><div class="row between wrapx">'+logoHTML()+'<div class="row"><span class="badge b-violet">Administrateur</span><button type="button" class="btn btn-w btn-s" data-a="logout">Se déconnecter</button></div></div><div class="tabs">'+tabs.map(t=>'<button type="button" class="tab'+(ui.aTab===t[0]?' on':'')+'" data-a="atab" data-id="'+t[0]+'">'+t[1]+(t[0]==='vendeurs'&&wait?' <span class="badge b-orange">'+wait+'</span>':'')+(t[0]==='paiements'&&payW?' <span class="badge b-orange">'+payW+'</span>':'')+(t[0]==='moderation'&&repW?' <span class="badge b-orange">'+repW+'</span>':'')+'</button>').join('')+'</div>';
   if(ui.aTab==='vendeurs'&&ui.adminShop)return h+aFiche(shopById(ui.adminShop))+'</div>';
-  return h+({tableau:aTableau,contacts:aContacts,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
+  return h+({tableau:aTableau,contacts:aContacts,verifs:aVerifs,vendeurs:aVendeurs,paiements:aPaiements,bannieres:aBannieres,moderation:aModeration,litiges:aLitiges,produits:aProduits,commandes:aCommandes,catalogue:aCatalogue,annonces:aAnnonces,aide:aAide,parametres:aParams}[ui.aTab]||aTableau)()+'</div>';
 }
 function aTableau(){
   const L=S.shops,D=ui.per,O=S.orders,Op=O.filter(o=>inPer(o.created_at,D));
@@ -1445,6 +1461,19 @@ const A={
   aReset:t=>act(async()=>{const r=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.token},body:JSON.stringify({shop_id:t.dataset.id})});
     let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||'Service indisponible. Vérifiez la clé dans Vercel.');ui.aPwd={shop:t.dataset.id,pw:j.password};},'Nouveau mot de passe créé'),
   per:t=>{ui.per=Number(t.dataset.id);render(true);},
+  vdType:t=>{ui.vd.type=t.dataset.id;render(true);},
+  vdRefOn:t=>{ui.vdRef=t.dataset.id;render(true);},
+  vdRefOff:()=>{ui.vdRef=null;render(true);},
+  vdSend:async()=>{const s=myShop(),vd=ui.vd||{};if(!s)return;const P=PIECES.find(x=>x[0]===vd.type)||PIECES[0],num=String(vd.num||'').trim();
+    if(num.length<3)return toast('Écrivez le numéro de la pièce');if(!vd.recto||!vd.selfie)return toast('Ajoutez les 2 photos');
+    const sup=waNum(S.settings.support_whatsapp||'');const d=new Date(),txt=P[2]+' n° '+num+' · envoyée le '+dfr(d)+' à '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    try{await q(sb.from('shop_private').upsert({shop_id:s.id,cni:txt.slice(0,120)}));S.priv[s.id]=Object.assign({},S.priv[s.id],{cni:txt.slice(0,120)});}catch(e){return toast('Erreur : '+e.message);}
+    const msg='Bonjour '+(S.settings.nom||'Gbairai Market')+' 👋 Vérification de ma boutique « '+s.nom+' » ('+shopUrl(s)+').\nPièce : '+P[2]+' n° '+num+'.\nVoici le recto de ma pièce et mon selfie avec la pièce.';
+    const files=[new File([vd.recto.blob],'piece-recto.jpg',{type:'image/jpeg'}),new File([vd.selfie.blob],'selfie-piece.jpg',{type:'image/jpeg'})];
+    let shared=false;try{if(navigator.canShare&&navigator.canShare({files})){await navigator.share({files,text:msg});shared=true;}}catch(e){if(e&&e.name==='AbortError'){render();return toast('Envoi annulé : touchez encore « Envoyer »');}}
+    if(!shared){window.open('https://wa.me/'+sup+'?text='+encodeURIComponent(msg+'\n(Je joins les 2 photos.)'),'_blank');toast('Dans WhatsApp, joignez vos 2 photos 📎');}
+    else toast('Choisissez le numéro du support dans WhatsApp');
+    ui.vd={type:vd.type,num:''};render();},
   ctTab:t=>{ui.ctTab=t.dataset.id;render();},
   ctOpen:t=>{ui.ctSel=t.dataset.id;render();window.scrollTo(0,0);},
   ctBack:()=>{ui.ctSel=null;render();},
@@ -1489,6 +1518,7 @@ function refreshOrderLinks(){
     const tg=document.querySelector('[data-a="orderTg"][data-shop="'+sid+'"]');if(tg)tg.dataset.text=txt;});}
 document.addEventListener('input',e=>{
   const ck=e.target.dataset&&e.target.dataset.client;if(ck){client[ck]=e.target.value;lsSet('gbairai-client',client);refreshOrderLinks();return;}
+  if(e.target.dataset&&e.target.dataset.i2==='vdNum'){ui.vd=ui.vd||{type:'cni',num:''};ui.vd.num=e.target.value;return;}
   const k=e.target.dataset&&e.target.dataset.i;if(!k)return;ui[k]=e.target.value;
   if(k==='q')document.getElementById('results').innerHTML=results();
   else if(k==='ctQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="ctQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
@@ -1502,6 +1532,7 @@ document.addEventListener('change',async e=>{
   if(e.target.name==='categorie'&&e.target.type==='radio'&&e.target.closest('form[data-f="produit"]')){const t=document.getElementById('f-type');if(t)t.innerHTML=typeOpts(e.target.value,'');document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(e.target)));return;}
   if(e.target.dataset&&e.target.dataset.file==='catphoto'&&e.target.files[0]){const id=e.target.dataset.id;try{const r=await resizePhoto(e.target.files[0],700);act(async()=>{const url=await uploadPhoto(r.blob);await saveCat(id,{photo:url});},'Photo du rayon changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.a2==='payDuree'){ui.pay.duree=+e.target.value;render(true);return;}
+  if(e.target.dataset&&/^vd-(recto|selfie)$/.test(e.target.dataset.file||'')&&e.target.files[0]){const k=e.target.dataset.file.slice(3);try{const r=await resizePhoto(e.target.files[0],1400);ui.vd=ui.vd||{type:'cni',num:''};ui.vd[k]=r;render(true);}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.file==='cover'&&e.target.files[0]){try{const r=await resizePhoto(e.target.files[0],1200);act(async()=>{const url=await uploadPhoto(r.blob);await q(sb.from('shops').update({couverture:url}).eq('id',myShop().id));},'Couverture changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.file==='photo'&&e.target.files[0]){
     try{const r=await resizePhoto(e.target.files[0]);keepForm();ui.photo=r;render(true);restoreForm();}catch(err){toast('Impossible de lire cette photo');}
@@ -1585,6 +1616,7 @@ const FORMS={
     ui.edit=null;ui.photo=undefined;ui.extras=undefined;
   },'Produit enregistré'),
   tx:d=>act(async()=>{const m=Math.round(n0(d.montant));if(m<=0)throw new Error('Indiquez un montant.');await q(sb.from('txs').insert({shop_id:myShop().id,type:d.type,montant:m,libelle:d.libelle.trim(),date:d.date||today()}));},'Mouvement enregistré'),
+  vdRefus:(d,f)=>act(async()=>{await q(sb.from('shops').update({verification:'refuse',motif_refus:String(d.motif||'').trim().slice(0,200)}).eq('id',f.dataset.id));await q(sb.from('shop_private').upsert({shop_id:f.dataset.id,cni:''}));ui.vdRef=null;},'Vérification refusée'),
   shop:(d,f)=>act(async()=>{
     const id=f.dataset.id,admin=f.dataset.admin==='1';
     const keys=['nom','gerant','categorie','description','whatsapp','telegram','telephone','email','facebook','tiktok','ville','quartier','adresse','livraison_zones','livraison_frais'];
@@ -1594,8 +1626,7 @@ const FORMS={
     if(admin&&'vedette' in d)row.vedette=d.vedette==='true';
     if(admin&&d.slug){const sl=slugify(d.slug);if(S.shops.some(x=>x.slug===sl&&x.id!==id))throw new Error('Ce lien est déjà pris.');row.slug=sl;}
     await q(sb.from('shops').update(row).eq('id',id));
-    const pv={shop_id:id,cni:String(d.cni||'').trim()};if(admin)pv.notes=String(d.notes||'');
-    await q(sb.from('shop_private').upsert(pv));
+    if('cni' in d||admin){const pv={shop_id:id,cni:String(d.cni||'').trim()};if(admin)pv.notes=String(d.notes||'');await q(sb.from('shop_private').upsert(pv));}
   },'Enregistré'),
   catType:(d,f)=>act(()=>{const id=f.dataset.id,x=String(d.nom||'').trim().slice(0,40),c=CATS().find(c=>c.id===id);if(!x||!c||c.types.includes(x))return Promise.resolve();const own=((S.settings.categories||[]).find(k=>k&&k.id===id)||{}).types||[];return saveCat(id,{types:own.concat([x])});},'Type ajouté'),
   cat:d=>act(()=>{const id=slugify(d.nom);if(CATS().some(c=>c.id===id))return Promise.resolve();return q(sb.from('settings').update({categories:S.settings.categories.concat([{id,nom:d.nom.trim()}])}).eq('id',1));}),
