@@ -93,6 +93,6 @@ function brancher(){const g=G();if(!g)return setTimeout(brancher,50);
   // Les promos programmées partent aussi quand quelqu'un ouvre le site (au plus une fois toutes les 5 min par téléphone)
   try{const t=+(localStorage.getItem('gbairai-pm-ping')||0);if(Date.now()-t>3e5){localStorage.setItem('gbairai-pm-ping',String(Date.now()));setTimeout(()=>fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"kind":"programmees"}'}).catch(()=>{}),4000);}}catch(e){}
 }
-window.GBP={vendeur:s=>formHTML(false),admin:()=>formHTML(true)};
+window.GBPROMO={vendeur:s=>formHTML(false),admin:()=>formHTML(true)};
 brancher();
 })();
