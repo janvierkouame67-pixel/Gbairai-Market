@@ -1,7 +1,7 @@
 // Gbairai Market : permet l'installation et un démarrage rapide.
 // Le site est toujours chargé depuis Internet d'abord ; la copie sert seulement hors connexion.
-const CACHE = 'gbairai-v48';
-const FICHIERS = ['/', '/index.html', '/styles.css', '/categories.js', '/interdits.js', '/app.js', '/plus.js', '/plus2.js', '/artisans.js', '/design.js', '/statut.js', '/voix.js', '/config.js', '/install.js', '/intro.js', '/bulle.js', '/icons/logo.svg', '/icons/icon-192.png'];
+const CACHE = 'gbairai-v49';
+const FICHIERS = ['/', '/index.html', '/styles.css', '/categories.js', '/interdits.js', '/app.js', '/promos.js', '/plus.js', '/plus2.js', '/artisans.js', '/design.js', '/statut.js', '/voix.js', '/config.js', '/install.js', '/intro.js', '/bulle.js', '/icons/logo.svg', '/icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FICHIERS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
@@ -16,8 +16,8 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Gbairai Market', {
-    body: d.body || '', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', image: d.image,
-    tag: d.tag, renotify: !!d.tag, data: { url: d.url || '/' }
+    body: d.body || '', icon: d.icon || '/icons/icon-192.png', badge: '/icons/icon-192.png', image: d.image,
+    tag: d.tag, renotify: !!d.tag, data: { url: d.campagne ? '/?promo=' + d.campagne + (d.url || '/').replace(/^\/?/, '') : (d.url || '/') }
   }));
 });
 self.addEventListener('notificationclick', e => {

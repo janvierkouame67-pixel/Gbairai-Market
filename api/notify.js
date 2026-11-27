@@ -2,6 +2,8 @@
 //  - kind "boutique" : nouvel article ou promo d'une boutique → ses abonnés (5 par jour max)
 //  - kind "commande" : nouvelle étape d'une commande → le client qui suit cette commande
 //  - kind "annonce" : annonce de l'admin → vendeurs, clients ou tout le monde
+//  - kind "campagne" : notification promo (titre, texte, image) d'un vendeur → ses abonnés, ou de l'admin → tous
+//  - kind "programmees" : envoie les promos programmées dont l'heure est passée (appelé par Supabase toutes les 5 min)
 // Nécessite dans Vercel : SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
 const { sendPush } = require('./_webpush');
 const URL_SB = process.env.SUPABASE_URL || 'https://wrowhozasjjszslrttts.supabase.co';
@@ -29,6 +31,45 @@ async function pushAll(subs, data) {
   return ok;
 }
 
+const PROMO_MAX = 20000;
+// Envoie une campagne déjà « réservée » (statut = envoi) puis la marque envoyée
+async function envoyerCampagne(c) {
+  let shop = null;
+  if (c.shop_id) {
+    shop = (await get('shops?select=id,nom,slug,logo,statut&id=eq.' + c.shop_id))[0];
+    if (!shop || shop.statut !== 'actif') { await patchCampagne(c.id, { statut: 'annulee' }); return 0; }
+  }
+  const filtre = c.shop_id ? '&shops=cs.%7B' + c.shop_id + '%7D' : c.cible === 'vendeurs' ? '&vendeur_shop=not.is.null' : c.cible === 'clients' ? '&vendeur_shop=is.null' : '';
+  const lien = /^#[\w-]{1,80}$/.test(c.lien) ? c.lien : shop ? '#boutique-' + shop.slug : '#accueil';
+  const data = { title: c.titre, body: c.texte || '', url: '/' + lien, image: c.image || undefined,
+    icon: (shop && /^https:\/\//.test(shop.logo || '') ? shop.logo : undefined), tag: 'promo-' + c.id, campagne: c.id };
+  let n = 0;
+  for (let from = 0; from < PROMO_MAX; from += 1000) {
+    const subs = await get('push_subs?select=endpoint,p256dh,auth&promos=is.true' + filtre + '&order=endpoint&offset=' + from + '&limit=1000');
+    for (let i = 0; i < subs.length; i += 100) n += await pushAll(subs.slice(i, i + 100), data);
+    if (subs.length < 1000) break;
+  }
+  await patchCampagne(c.id, { statut: 'envoyee', envoye: n });
+  return n;
+}
+const patchCampagne = (id, o) => fetch(URL_SB + '/rest/v1/campagnes?id=eq.' + id, { method: 'PATCH', headers: H(), body: JSON.stringify(o) });
+// Réserve la campagne (une seule fonction l'envoie, même si deux appels arrivent en même temps)
+async function reserver(id) {
+  const r = await fetch(URL_SB + '/rest/v1/campagnes?id=eq.' + id + '&statut=eq.prevue&envoyer_a=lte.' + encodeURIComponent(new Date().toISOString()),
+    { method: 'PATCH', headers: Object.assign(H(), { Prefer: 'return=representation' }), body: JSON.stringify({ statut: 'envoi' }) });
+  if (!r.ok) return null;
+  return (await r.json())[0] || null;
+}
+async function programmees() {
+  const due = await get('campagnes?select=id&statut=eq.prevue&envoyer_a=lte.' + encodeURIComponent(new Date().toISOString()) + '&order=envoyer_a&limit=5');
+  let n = 0, k = 0;
+  for (const d of due) { const c = await reserver(d.id); if (c) { n += await envoyerCampagne(c); k++; } }
+  // Une campagne bloquée en « envoi » depuis plus de 15 min (coupure) : on la marque envoyée pour ne pas spammer
+  const vieux = encodeURIComponent(new Date(Date.now() - 9e5).toISOString());
+  await fetch(URL_SB + '/rest/v1/campagnes?statut=eq.envoi&envoyer_a=lt.' + vieux, { method: 'PATCH', headers: H(), body: JSON.stringify({ statut: 'envoyee' }) });
+  return { campagnes: k, envoye: n };
+}
+
 module.exports = async (req, res) => {
   const pret = !!(SR && KEYS.pub && KEYS.priv);
   if (req.method === 'GET') return send(res, 200, { pret, cle: KEYS.pub || '' });
@@ -36,6 +77,8 @@ module.exports = async (req, res) => {
   if (!pret) return send(res, 200, { envoye: 0, pret: false });
   try {
     let body = req.body; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } } body = body || {};
+    // Promos programmées : sans compte (n'envoie que ce qui est déjà prévu et dont l'heure est passée)
+    if (body.kind === 'programmees') return send(res, 200, await programmees());
     // Message d'un client (sans compte) → prévenir le vendeur, seulement pour le 1er message non lu
     if (body.kind === 'message' && body.k) {
       if (!UUID.test(body.conv_id || '') || !UUID.test(body.k)) return send(res, 400, { error: 'Discussion invalide.' });
@@ -94,6 +137,18 @@ module.exports = async (req, res) => {
       await fetch(URL_SB + '/rest/v1/push_log', { method: 'POST', headers: H(), body: JSON.stringify({ shop_id: s.id }) });
       const n = await pushAll(subs, { title: s.nom, body: (promo ? '⚡ Promo : ' : '🆕 Nouveau : ') + p.nom + ' à ' + F(p.prix), url: '/#produit-' + p.id, image: p.photo || undefined, tag: 'shop-' + s.id });
       return send(res, 200, { envoye: n });
+    }
+    if (body.kind === 'campagne') {
+      if (!UUID.test(body.campagne_id || '')) return send(res, 400, { error: 'Promo invalide.' });
+      const c0 = (await get('campagnes?select=id,shop_id,statut,envoye,envoyer_a&id=eq.' + body.campagne_id))[0];
+      if (!c0) return send(res, 404, { error: 'Promo introuvable.' });
+      if (c0.shop_id) { const s = (await get('shops?select=owner&id=eq.' + c0.shop_id))[0]; if (!s || (s.owner !== me.id && !isAdmin)) return send(res, 403, { error: 'Interdit.' }); }
+      else if (!isAdmin) return send(res, 403, { error: 'Réservé à l\'administrateur.' });
+      if (c0.statut !== 'prevue') return send(res, 200, { envoye: c0.envoye, deja: true });
+      if (new Date(c0.envoyer_a) > Date.now()) return send(res, 200, { envoye: 0, programmee: true });
+      const c = await reserver(c0.id);
+      if (!c) return send(res, 200, { envoye: 0, deja: true });
+      return send(res, 200, { envoye: await envoyerCampagne(c) });
     }
     if (body.kind === 'annonce') {
       if (!isAdmin) return send(res, 403, { error: 'Réservé à l\'administrateur.' });
