@@ -266,6 +266,19 @@ const refUrl=(slug,c)=>isLocal()?baseUrl()+'?c='+encodeURIComponent(c)+'#boutiqu
 const espaceUrl=sec=>baseUrl()+'#commercial-'+sec;
 const PAYE=[['especes','Espèces'],['wave','Wave'],['orange','Orange Money'],['mtn','MTN MoMo'],['moov','Moov Money'],['credit','À crédit']];
 const payeName=v=>(PAYE.find(x=>x[0]===v)||['',''])[1];
+const hfr=x=>{const d=new Date(x);return isNaN(d)?'':d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+/* En-tête des documents imprimables (reçu, relevés) */
+function docBand(titre,num){const n=S.settings.nom||'Gbairai Market';return '<div class="doc-band"><div class="doc-brand"><img src="icons/icon-192.png" alt=""><b>'+esc(n)+'</b></div><div class="doc-title"><span>'+titre+'</span><b>'+num+'</b></div></div>';}
+function docSign(a,b){return '<div class="doc-sign"><div><span>'+a+'</span></div><div><span>'+b+'</span></div></div>';}
+function docBtns(txt,wa,file){return '<div class="doc-btns noprint"><button type="button" class="btn btn-v" data-a="print">📄 Imprimer</button><button type="button" class="btn btn-o" data-a="recuImg" data-id="'+esc(file)+'">🖼️ Image</button><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/'+(wa||'')+'?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Envoyer</a></div>';}
+let h2cLoad=null;
+function recuImage(name){const el=document.getElementById('recu');if(!el)return;toast('Préparation de l\'image…');
+  h2cLoad=h2cLoad||new Promise((ok,ko)=>{if(window.html2canvas)return ok();const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';sc.onload=ok;sc.onerror=()=>{h2cLoad=null;ko();};document.head.appendChild(sc);});
+  h2cLoad.then(()=>window.html2canvas(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false})).then(cv=>new Promise(r=>cv.toBlob(r,'image/png'))).then(async b=>{
+    const f=new File([b],(name||'recu')+'.png',{type:'image/png'});
+    try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+    const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('Image enregistrée dans vos téléchargements');
+  }).catch(()=>toast('Image impossible pour le moment. Utilisez « Imprimer / PDF ».'));}
 const recuNo=n=>String(n||0).padStart(5,'0');
 const dfr=x=>{const d=new Date(x);return isNaN(d)?String(x||'').slice(0,10):d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});};
 const moisFr=m=>{const a=m.split('-').map(Number);return new Date(a[0],a[1]-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});};
@@ -1073,18 +1086,21 @@ function vRecu(id){
   let h='<div class="wrap"><div class="row noprint">'+back(seller?'#vendeur':'#suivi-'+esc(id))+'<h1 style="font-size:20px">Reçu</h1></div>';
   if(!d)return h+'<div class="card">'+(d===false?'<h2 style="font-size:17px">Reçu pas encore disponible</h2><p class="muted" style="margin:0">Le reçu apparaît quand le vendeur a confirmé la vente.</p>':'<p class="muted" style="margin:0">Chargement…</p>')+'</div></div>';
   const pm=d.paye_mode||'',paid=pm&&pm!=='credit',n=recuNo(d.recu_num),it=d.items||[];
-  h+='<div class="recu" id="recu"><div class="recu-top"><div class="row" style="min-width:0">'+(d.logo?'<img class="recu-logo" src="'+esc(d.logo)+'" alt="">':'<span class="recu-logo ph">'+esc(String(d.boutique||'?').slice(0,1))+'</span>')+'<div style="min-width:0"><b class="recu-shop">'+esc(d.boutique)+'</b><div class="small muted">'+esc([d.quartier,d.ville].filter(Boolean).join(', '))+(d.point?' · '+esc(d.point):'')+'</div><div class="small muted">WhatsApp : '+esc(d.whatsapp||'')+'</div></div></div>'+(pm?'<span class="stamp'+(paid?'':' credit')+'">'+(paid?'PAYÉ':'À CRÉDIT')+'</span>':'')+'</div>'+
-    '<div class="recu-meta"><div><span>Reçu n°</span><b class="num">'+n+'</b></div><div><span>Date</span><b>'+esc(dfr(d.created_at))+'</b></div><div><span>Client</span><b>'+esc(d.client_nom||'—')+'</b></div></div>'+
-    '<table class="recu-t"><thead><tr><th>Article</th><th>Qté</th><th>Prix</th><th>Total</th></tr></thead><tbody>'+it.map(x=>'<tr><td>'+esc(x.nom)+(x.taille?' ('+esc(x.taille)+')':'')+'</td><td class="num">'+x.qty+'</td><td class="num">'+fmtN(x.prix)+'</td><td class="num">'+fmtN(x.prix*x.qty)+'</td></tr>').join('')+'</tbody></table>'+
-    '<div class="recu-tot"><span>TOTAL</span><b class="num">'+fmtN(d.total)+' FCFA</b></div>'+
-    (pm?'<div class="small">Paiement : <b>'+esc(payeName(pm))+'</b>'+(pm==='credit'?' (reste à payer)':'')+'</div>':'<div class="small muted">Mode de paiement pas encore indiqué.</div>')+
-    (d.livree_code?'<div class="small" style="color:var(--green);font-weight:700">✔ Livraison confirmée par le code du client</div>':'')+
-    '<div class="recu-qr"><div id="recuqr" data-url="'+esc(recuUrl(id))+'"></div><div class="small"><b>Scannez pour vérifier</b><br><span class="muted">Le code ouvre le vrai reçu sur '+esc(S.settings.nom||'Gbairai Market')+'. Un faux reçu ne peut pas avoir ce code.</span></div></div>'+
-    '<div class="recu-foot small muted">Reçu vérifiable en ligne :<br><b>'+esc(recuUrl(id).replace(/^https?:\/\//,''))+'</b><br>Merci pour votre achat · '+esc(S.settings.nom||'Gbairai Market')+'</div></div>';
+  const nbA=it.reduce((a,x)=>a+x.qty,0);
+  h+='<div class="recu doc ticket" id="recu">'+docBand('REÇU DE VENTE','N° '+n)+'<div class="doc-body">'+
+    '<div class="doc-shop"><div class="row" style="min-width:0;gap:12px">'+(d.logo?'<img class="recu-logo" src="'+esc(d.logo)+'" alt="" crossorigin="anonymous">':'<span class="recu-logo ph">'+esc(String(d.boutique||'?').slice(0,1))+'</span>')+'<div style="min-width:0"><b class="recu-shop">'+esc(d.boutique)+'</b><div class="small muted">'+esc([d.quartier,d.ville].filter(Boolean).join(', '))+(d.point?' · '+esc(d.point):'')+'</div><div class="small muted">📞 '+esc(d.whatsapp||'')+'</div></div></div>'+(pm?'<span class="stamp'+(paid?'':' credit')+'">'+(paid?'PAYÉ':'À CRÉDIT')+'</span>':'')+'</div>'+
+    '<div class="recu-meta"><div><span>Date</span><b>'+esc(dfr(d.created_at))+'</b></div><div><span>Heure</span><b>'+esc(hfr(d.created_at))+'</b></div><div><span>Client</span><b>'+esc(d.client_nom||'—')+'</b></div></div>'+
+    '<table class="recu-t"><thead><tr><th>Article</th><th>Qté</th><th>Prix</th><th>Total</th></tr></thead><tbody>'+it.map(x=>'<tr><td>'+esc(x.nom)+(x.taille?' <small class="muted">('+esc(x.taille)+')</small>':'')+'</td><td class="num">'+x.qty+'</td><td class="num">'+fmtN(x.prix)+'</td><td class="num">'+fmtN(x.prix*x.qty)+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="doc-sub"><span>'+nbA+' article'+(nbA>1?'s':'')+'</span><span>Sous-total <b class="num">'+fmtN(it.reduce((a,x)=>a+x.prix*x.qty,0))+' F</b></span></div>'+
+    '<div class="recu-tot"><span>TOTAL À PAYER</span><b class="num">'+fmtN(d.total)+' FCFA</b></div>'+
+    '<div class="doc-pay">'+(pm?'<span>Paiement : <b>'+esc(payeName(pm))+'</b>'+(pm==='credit'?' (reste à payer)':'')+'</span>':'<span class="muted">Mode de paiement pas encore indiqué</span>')+(d.livree_code?'<span class="g">✔ Livraison confirmée par le code du client</span>':'')+'</div>'+
+    '<div class="recu-qr"><div id="recuqr" data-url="'+esc(recuUrl(id))+'"></div><div class="small"><b>Reçu authentique, vérifiable</b><br><span class="muted">Scannez le code : il ouvre l\'original sur '+esc(S.settings.nom||'Gbairai Market')+'. Ce reçu reste en ligne pour toujours.</span><div class="doc-url">'+esc(recuUrl(id).replace(/^https?:\/\//,''))+'</div></div></div>'+
+    docSign('Signature du client','Cachet du vendeur')+
+    '<div class="recu-foot small">Merci pour votre achat 🙏 · Gardez ce reçu pour tout échange ou garantie</div></div><div class="doc-zig"></div></div>';
   const txt='🧾 Reçu n° '+n+' · '+d.boutique+'\n'+it.map(x=>'• '+x.qty+' × '+x.nom+' – '+F(x.prix*x.qty)).join('\n')+'\nTotal : '+fmtN(d.total)+' FCFA'+(pm?'\nPaiement : '+payeName(pm):'')+'\nVoir le reçu : '+recuUrl(id);
-  h+='<div class="grid2 noprint"><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Partager</a><button type="button" class="btn btn-v" data-a="print">📄 PDF / Imprimer</button></div>';
+  h+=docBtns(txt,'','recu-'+n);
   setTimeout(fillQR,0);
-  return h+'<p class="small muted noprint" style="text-align:center;margin:0">Pour le PDF : touchez « PDF / Imprimer » puis choisissez « Enregistrer en PDF ».</p></div>';}
+  return h+'<p class="small muted noprint" style="text-align:center;margin:0">Pour le PDF : touchez « Imprimer / PDF » puis choisissez « Enregistrer en PDF ». « Image » crée une photo à envoyer sur WhatsApp.</p></div>';}
 function vvReleve(s){const m=ui.rel,cur=monthOf(today());
   const tx=S.txs.filter(t=>t.shop_id===s.id&&monthOf(t.date)===m).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const rec=sumT(tx.filter(t=>t.type==='recette')),dep=sumT(tx.filter(t=>t.type==='depense'));
@@ -1094,12 +1110,14 @@ function vvReleve(s){const m=ui.rel,cur=monthOf(today());
   let bal=0;const rows=tx.map(t=>{bal+=t.type==='recette'?t.montant:-t.montant;return '<tr><td>'+esc(String(t.date).slice(8,10)+'/'+String(t.date).slice(5,7))+'</td><td>'+esc(t.libelle)+'</td><td class="num" style="color:'+(t.type==='recette'?'var(--green)':'#9A3412')+'">'+(t.type==='recette'?'+':'−')+fmtN(t.montant)+'</td><td class="num">'+fmtN(bal)+'</td></tr>';}).join('');
   const txt='📄 Relevé de '+moisFr(m)+' · '+s.nom+'\nVentes confirmées : '+nb+' ('+F(ca)+')\nRecettes : '+F(rec)+'\nDépenses : '+F(dep)+'\nBénéfice : '+(rec-dep<0?'−':'')+F(Math.abs(rec-dep))+(due?'\nÀ encaisser (crédits) : '+F(due):'')+'\n'+(S.settings.nom||'Gbairai Market');
   return '<div class="row between noprint"><button type="button" class="btn btn-w btn-s" data-a="relClose">‹ Caisse</button><div class="row" style="gap:6px"><button type="button" class="icon-btn" style="width:36px;height:36px" data-a="releve" data-id="'+addMonth(m,-1)+'" aria-label="Mois d\'avant">‹</button><b style="min-width:110px;text-align:center;text-transform:capitalize">'+esc(moisFr(m))+'</b><button type="button" class="icon-btn" style="width:36px;height:36px" data-a="releve" data-id="'+addMonth(m,1)+'"'+(m>=cur?' disabled':'')+' aria-label="Mois d\'après">›</button></div></div>'+
-  '<div class="recu" id="recu"><div class="recu-top"><div class="row" style="min-width:0">'+avatar(s,44)+'<div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">Relevé de compte · <span style="text-transform:capitalize">'+esc(moisFr(m))+'</span></div></div></div></div>'+
+  '<div class="recu doc" id="recu">'+docBand('RELEVÉ DE COMPTE','<span style="text-transform:capitalize">'+esc(moisFr(m))+'</span>')+'<div class="doc-body">'+
+  '<div class="doc-shop"><div class="row" style="min-width:0;gap:12px">'+avatar(s,44)+'<div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">'+esc(place(s))+' · 📞 '+esc(s.whatsapp||'')+'</div></div></div><span class="doc-per">Du 1<sup>er</sup> au '+new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0).getDate()+' <span style="text-transform:capitalize">'+esc(moisFr(m))+'</span></span></div>'+
   '<div class="relk"><div><span>Ventes</span><b class="num">'+nb+'</b></div><div><span>Panier moyen</span><b class="num">'+F(nb?Math.round(ca/nb):0)+'</b></div><div><span>Recettes</span><b class="num" style="color:var(--green)">'+F(rec)+'</b></div><div><span>Dépenses</span><b class="num" style="color:#9A3412">'+F(dep)+'</b></div><div class="big"><span>Bénéfice</span><b class="num">'+(rec-dep<0?'−':'')+F(Math.abs(rec-dep))+'</b></div><div class="big"><span>À encaisser (crédits)</span><b class="num" style="color:'+(due?'#EA580C':'inherit')+'">'+F(due)+'</b></div></div>'+
   '<div class="small" style="font-weight:700">Recettes par semaine</div><div class="wkbars">'+wk.map((v,i)=>'<div><i style="height:'+Math.round(v/mx*100)+'%"></i><span>S'+(i+1)+'</span></div>').join('')+'</div>'+
-  (rows?'<table class="recu-t"><thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Solde</th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted small" style="margin:0">Aucun mouvement ce mois-ci.</p>')+
-  '<div class="recu-foot small muted">Relevé établi le '+esc(dfr(new Date()))+' · '+esc(S.settings.nom||'Gbairai Market')+'</div></div>'+
-  '<div class="grid2 noprint"><button type="button" class="btn btn-v" data-a="print">📄 PDF / Imprimer</button><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Envoyer</a></div>';}
+  (rows?'<table class="recu-t zebra"><thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Solde</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="2">Total recettes</td><td class="num" style="color:var(--green)">+'+fmtN(rec)+'</td><td></td></tr><tr><td colspan="2">Total dépenses</td><td class="num" style="color:#9A3412">−'+fmtN(dep)+'</td><td></td></tr><tr class="fin"><td colspan="2">Solde du mois</td><td></td><td class="num">'+(rec-dep<0?'−':'')+fmtN(Math.abs(rec-dep))+' F</td></tr></tfoot></table>':'<p class="muted small" style="margin:0">Aucun mouvement ce mois-ci.</p>')+
+  docSign('Le vendeur','Visa / cachet')+
+  '<div class="recu-foot small muted">Relevé établi le '+esc(dfr(new Date()))+' à '+esc(hfr(new Date()))+' · '+esc(S.settings.nom||'Gbairai Market')+'</div></div></div>'+
+  docBtns(txt,'','releve-'+m);}
 function cliStats(s,key){const os=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='confirmee'&&o.client_tel&&waNum(o.client_tel)===key);
   const vs=(S.versements||[]).filter(v=>v.shop_id===s.id&&waNum(v.client_tel)===key),credit=sumT(os.filter(o=>o.paye_mode==='credit')),verse=sumT(vs);
   return {os,vs,credit,verse,reste:Math.max(0,credit-verse),achats:sumT(os)};}
@@ -1110,11 +1128,14 @@ function vvClient(s,key){const c=cliStats(s,key),o0=S.orders.find(o=>o.shop_id==
   let bal=0;const rows=L.map(x=>{if(x.cr)bal+=x.m;else if(x.m<0)bal+=x.m;return '<tr><td>'+esc(x.d.slice(8,10)+'/'+x.d.slice(5,7)+'/'+x.d.slice(2,4))+'</td><td>'+esc(x.t)+(x.id?' <button type="button" class="linkbtn noprint" style="display:inline;padding:0" data-a="delVers" data-id="'+x.id+'" aria-label="Supprimer">✕</button>':'')+'</td><td class="num" style="color:'+(x.m<0?'var(--green)':x.cr?'#EA580C':'inherit')+'">'+(x.m<0?'−'+fmtN(-x.m):fmtN(x.m))+'</td><td class="num">'+(x.cr||x.m<0?fmtN(Math.max(0,bal)):'—')+'</td></tr>';}).join('');
   const txt='Bonjour '+nom+', voici votre relevé chez '+s.nom+' ('+dfr(new Date())+') :\nAchats : '+F(c.achats)+'\nDont à crédit : '+F(c.credit)+'\nDéjà versé : '+F(c.verse)+'\nReste à payer : '+F(c.reste)+'\nMerci pour votre confiance !';
   return '<div class="row between noprint"><button type="button" class="btn btn-w btn-s" data-a="cliClose">‹ Clients</button><button type="button" class="btn btn-w btn-s" data-a="print">📄 PDF</button></div>'+
-  '<div class="recu" id="recu"><div class="recu-top"><div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">Relevé du client · '+esc(dfr(new Date()))+'</div></div>'+(c.reste?'<span class="stamp credit">DOIT '+fmtN(c.reste)+' F</span>':c.credit?'<span class="stamp">SOLDÉ</span>':'')+'</div>'+
+  '<div class="recu doc" id="recu">'+docBand('RELEVÉ CLIENT',esc(dfr(new Date())))+'<div class="doc-body">'+
+  '<div class="doc-shop"><div class="row" style="min-width:0;gap:12px">'+avatar(s,44)+'<div style="min-width:0"><b class="recu-shop">'+esc(s.nom)+'</b><div class="small muted">'+esc(place(s))+' · 📞 '+esc(s.whatsapp||'')+'</div></div></div>'+(c.reste?'<span class="stamp credit">DOIT '+fmtN(c.reste)+' F</span>':c.credit?'<span class="stamp">SOLDÉ</span>':'')+'</div>'+
   '<div class="recu-meta"><div><span>Client</span><b>'+esc(nom)+'</b></div><div><span>Téléphone</span><b>'+esc(tel)+'</b></div><div><span>Achats</span><b class="num">'+c.os.length+'</b></div></div>'+
   '<div class="relk"><div><span>Total acheté</span><b class="num">'+F(c.achats)+'</b></div><div><span>À crédit</span><b class="num" style="color:#EA580C">'+F(c.credit)+'</b></div><div><span>Déjà versé</span><b class="num" style="color:var(--green)">'+F(c.verse)+'</b></div><div class="big"><span>Reste à payer</span><b class="num">'+F(c.reste)+'</b></div></div>'+
-  (rows?'<table class="recu-t"><thead><tr><th>Date</th><th>Opération</th><th>Montant</th><th>Reste</th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted small" style="margin:0">Pas encore d\'achat confirmé.</p>')+
-  '<div class="recu-foot small muted">'+esc(S.settings.nom||'Gbairai Market')+'</div></div>'+
+  (rows?'<table class="recu-t zebra"><thead><tr><th>Date</th><th>Opération</th><th>Montant</th><th>Reste</th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted small" style="margin:0">Pas encore d\'achat confirmé.</p>')+
+  docSign('Le client','Le vendeur')+
+  '<div class="recu-foot small muted">Merci pour votre confiance · '+esc(S.settings.nom||'Gbairai Market')+'</div></div></div>'+
+  '<div class="doc-btns noprint"><button type="button" class="btn btn-v" data-a="print">📄 Imprimer</button><button type="button" class="btn btn-o" data-a="recuImg" data-id="releve-'+esc(String(nom).replace(/\s+/g,'-'))+'">🖼️ Image</button></div>'+
   '<form class="card stack noprint" data-f="versement" data-tel="'+esc(key)+'"><h2 style="font-size:16px">+ Enregistrer un versement</h2><div class="grid2"><label class="lbl">Montant (FCFA)<input class="in" name="montant" inputmode="numeric" required placeholder="5000"></label><label class="lbl">Mode<select class="in" name="mode">'+PAYE.filter(x=>x[0]!=='credit').map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></label></div><label class="lbl">Note (facultatif)<input class="in" name="note" maxlength="120" placeholder="Ex. : 2e tranche"></label><button class="btn btn-v btn-block" type="submit">Enregistrer le versement</button><p class="small muted" style="margin:0">La vente est déjà dans votre caisse : le versement réduit seulement ce que le client doit.</p></form>'+
   '<a class="btn btn-g btn-block noprint" target="_blank" rel="noopener" href="https://wa.me/'+waNum(tel)+'?text='+encodeURIComponent(txt)+'">'+ic('wa',18,'#fff')+'Envoyer le relevé au client</a>';}
 function codeFrom(nom,shopId){let b=String(nom||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);if(b.length<2)b='COM'+b;
@@ -1685,6 +1706,7 @@ const A={
   cliOpen:t=>{ui.cli=t.dataset.id;render();},
   cliClose:()=>{ui.cli=null;render();},
   print:()=>window.print(),
+  recuImg:t=>recuImage(t.dataset.id),
   payeMode:t=>{const o=S.orders.find(x=>x.id===t.dataset.id);act(()=>q(sb.from('orders').update({paye_mode:o&&o.paye_mode===t.dataset.v?'':t.dataset.v}).eq('id',t.dataset.id)),'Paiement enregistré');},
   pointOrder:t=>{const o=S.orders.find(x=>x.id===t.dataset.id);act(()=>q(sb.from('orders').update({point_id:o&&o.point_id===t.dataset.v?null:t.dataset.v}).eq('id',t.dataset.id)),'Point de vente enregistré');},
   delVers:t=>act(()=>q(sb.from('versements').delete().eq('id',t.dataset.id)),'Versement supprimé'),

@@ -971,3 +971,50 @@ body[data-page="produit"] .nav{display:none}
 .vm-it:active i{transform:scale(.92)}
 @media (min-width:900px){.vm-grid{grid-template-columns:repeat(7,minmax(0,1fr))}}
 :root[data-theme="dark"] .vm-it i{background:#2A1D4A!important}
+/* ===== Reçu et relevés : modèle « document » à imprimer ou en image ===== */
+.recu.doc{padding:0;gap:0;overflow:hidden;border-radius:18px;border:1px solid #E7DEFA;background:#fff;color:#1B1033}
+.doc-band{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;color:#fff;background-color:#4C1D95;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke-width='2'%3E%3Ccircle cx='14' cy='14' r='7' stroke='%23FF7A1A' stroke-opacity='.45'/%3E%3Cpath d='M34 40l8-8 8 8-8 8z' stroke='%2316A37F' stroke-opacity='.45'/%3E%3Cpath d='M30 12c5-5 10 5 15 0' stroke='%23FFFFFF' stroke-opacity='.25'/%3E%3C/g%3E%3C/svg%3E"),linear-gradient(135deg,#7C3AED,#3B0F87);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc-brand{display:flex;align-items:center;gap:8px;min-width:0}
+.doc-brand img{width:34px;height:34px;border-radius:10px;background:#fff;padding:3px}
+.doc-brand b{font-family:var(--display);font-size:15px;white-space:nowrap}
+.doc-title{text-align:right}
+.doc-title span{display:block;font-size:10.5px;letter-spacing:2px;font-weight:800;opacity:.85}
+.doc-title b{font-family:var(--display);font-size:18px;white-space:nowrap}
+.doc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;position:relative}
+.doc-body::before{content:"";position:absolute;inset:40px 30px;background:url(icons/logo.svg) center/50% no-repeat;opacity:.045;pointer-events:none}
+.doc-shop{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px;padding-bottom:12px;border-bottom:2px dashed #E4DCF8}
+.doc-per{flex-shrink:0;font-size:11.5px;font-weight:700;background:#FFF1E5;color:#9A3412;border-radius:10px;padding:5px 9px;text-align:right}
+.recu.doc .recu-meta div{background:#F7F3FF}
+.recu.doc .recu-t th{background:#1B1033;color:#fff;border:0;padding:8px 6px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.recu.doc .recu-t th:first-child{border-radius:8px 0 0 8px}.recu.doc .recu-t th:last-child{border-radius:0 8px 8px 0}
+.recu-t.zebra tbody tr:nth-child(even) td{background:#FAF7FF}
+.recu-t tfoot td{padding:6px 4px;font-weight:700;border-top:1px solid #E7DEFA;font-size:12.5px}
+.recu-t tfoot tr.fin td{background:#EDE7FB;font-family:var(--display);font-size:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc-sub{display:flex;justify-content:space-between;font-size:12.5px;color:#6B5E85}
+.recu.doc .recu-tot{background:linear-gradient(135deg,#FF8A2A,#E5600A);box-shadow:0 4px 0 #B4530F;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc-pay{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.doc-pay .g{color:var(--green);font-weight:700}
+.doc-url{margin-top:4px;font-size:11px;font-weight:700;color:#5B21B6;word-break:break-all}
+.recu.doc .recu-qr #recuqr svg{width:92px;height:92px}
+.doc-sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.doc-sign div{height:72px;border:1.5px dashed #CFC4EA;border-radius:12px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.doc-sign span{font-size:11px;color:#6B5E85;font-weight:600}
+.recu.doc .recu-foot{border-top:2px dashed #E4DCF8;color:#5E5276}
+.doc-zig{height:12px;background:linear-gradient(-45deg,transparent 8px,#fff 0) 0 0/16px 12px repeat-x,linear-gradient(45deg,transparent 8px,#fff 0) 0 0/16px 12px repeat-x;margin-top:-1px}
+.recu.doc.ticket{border-radius:18px 18px 0 0;border-bottom:0;background:transparent;box-shadow:0 10px 30px -14px rgba(76,29,149,.35)}
+.recu.doc.ticket .doc-body{background:#fff}
+.recu.doc .stamp{background:rgba(255,255,255,.7)}
+.doc-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.doc-btns .btn{font-size:13px;padding:0 6px;gap:5px}
+:root[data-theme="dark"] .recu.doc,:root[data-theme="dark"] .recu.doc .doc-body{background:#fff;color:#1B1033}
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{background:#fff!important}
+  #recu.doc{max-width:150mm;margin:0 auto;left:0;right:0;border:1px solid #ddd!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #recu.doc:not(.ticket){max-width:none}
+  .doc-zig{display:none}
+  .nav,#bulle,.buybar{display:none!important}
+}
+.recu.doc .recu-foot{word-break:normal}
+.recu.doc .recu-meta b{white-space:normal}
+@media print{html,body{background-image:none!important}body::before,body::after,#app::before,#app::after{display:none!important}}
