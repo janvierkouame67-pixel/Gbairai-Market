@@ -1,6 +1,6 @@
 // Gbairai Market : permet l'installation et un démarrage rapide.
 // Le site est toujours chargé depuis Internet d'abord ; la copie sert seulement hors connexion.
-const CACHE = 'gbairai-v49';
+const CACHE = 'gbairai-v50';
 const FICHIERS = ['/', '/index.html', '/styles.css', '/categories.js', '/interdits.js', '/app.js', '/promos.js', '/plus.js', '/plus2.js', '/artisans.js', '/design.js', '/statut.js', '/voix.js', '/config.js', '/install.js', '/intro.js', '/bulle.js', '/icons/logo.svg', '/icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FICHIERS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
@@ -24,7 +24,9 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin).href;
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    for (const c of list) { if (c.url.startsWith(self.location.origin) && 'focus' in c) { c.navigate(url); return c.focus(); } }
-    return clients.openWindow(url);
+    const c = list.find(x => x.url.startsWith(self.location.origin) && 'focus' in x);
+    if (!c) return clients.openWindow(url);
+    // Ouvrir la page de la promo ; si le téléphone refuse, on ouvre une nouvelle fenêtre
+    return c.focus().then(w => (w || c).navigate ? (w || c).navigate(url) : null).catch(() => clients.openWindow(url));
   }));
 });

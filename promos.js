@@ -63,13 +63,13 @@ async function envoyer(f){const g=G();if(P.busy)return;const admin=f.dataset.adm
   if(!P.titre)return g.toast('Écrivez un titre, par exemple « -20 % sur tout ».');
   if(!admin&&!s)return;
   let quandD=new Date();if(P.quand==='plus'){quandD=iso(P.date||localInput(new Date(Date.now()+36e5)));if(!quandD||quandD<Date.now()-6e4)return g.toast('Choisissez une date et une heure à venir.');}
-  const row={titre:P.titre,texte:P.texte,image:/^https:\/\//.test(P.img)?P.img:'',lien:/^#[\w-]{1,80}$/.test(P.lien)?P.lien:'',cible:admin?P.cible:'abonnes',shop_id:s?s.id:null,envoyer_a:quandD.toISOString()};
+  const row={titre:P.titre,texte:P.texte,image:/^https:\/\//.test(P.img)?P.img:'',lien:/^#[\w-]{1,80}$/.test(P.lien)?P.lien:'',cible:admin?P.cible:'abonnes',shop_id:s?s.id:null};if(P.quand==='plus')row.envoyer_a=quandD.toISOString();
   if(admin&&!s&&!row.lien)row.lien='#accueil';
   P.busy=true;P.res='';g.render(true);
   try{const r=await g.q(g.sb.from('campagnes').insert(row).select('id').single());
     if(P.quand==='plus')P.res='🗓️ Promo programmée pour '+quand(quandD)+'. Elle partira toute seule.';
-    else{let n=null;try{const x=await fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+g.S.token},body:JSON.stringify({kind:'campagne',campagne_id:r.id})});const j=await x.json();if(j&&j.pret===false)n=-1;else if(j&&typeof j.envoye==='number')n=j.envoye;}catch(e){}
-      P.res=n===-1?'Promo enregistrée, mais les notifications ne sont pas encore prêtes (Admin › Paramètres › Notifications).':n===null?'Promo enregistrée. Elle part dans quelques minutes.':n?'📣 Promo envoyée sur '+n+' téléphone'+(n>1?'s':'')+' !':'Promo enregistrée, mais aucun abonné n\'a encore activé les alertes. Partagez votre lien pour en gagner.';}
+    else{let n=null;try{const x=await fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+g.S.token},body:JSON.stringify({kind:'campagne',campagne_id:r.id})});const j=await x.json();if(j&&j.pret===false)n=-1;else if(j&&j.error)n=-2,P.err=j.error;else if(j&&j.programmee)n=null;else if(j&&typeof j.envoye==='number')n=j.envoye;}catch(e){}
+      P.res=n===-2?'Promo enregistrée, mais l\'envoi a échoué : '+P.err+' Elle repartira dans quelques minutes.':n===-1?'Promo enregistrée, mais les notifications ne sont pas encore prêtes (Admin › Paramètres › Notifications).':n===null?'Promo enregistrée. Elle part dans quelques minutes.':n?'📣 Promo envoyée sur '+n+' téléphone'+(n>1?'s':'')+' !':'Promo enregistrée, mais aucun abonné n\'a encore activé les alertes. Partagez votre lien pour en gagner.';}
     P.titre='';P.texte='';P.img='';P.lien='';P.date='';P.quand='now';
     await g.loadAll();if(g.tchin)g.tchin();
   }catch(e){g.toast(g.errMsg(e));}

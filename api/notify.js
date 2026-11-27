@@ -54,8 +54,8 @@ async function envoyerCampagne(c) {
 }
 const patchCampagne = (id, o) => fetch(URL_SB + '/rest/v1/campagnes?id=eq.' + id, { method: 'PATCH', headers: H(), body: JSON.stringify(o) });
 // Réserve la campagne (une seule fonction l'envoie, même si deux appels arrivent en même temps)
-async function reserver(id) {
-  const r = await fetch(URL_SB + '/rest/v1/campagnes?id=eq.' + id + '&statut=eq.prevue&envoyer_a=lte.' + encodeURIComponent(new Date().toISOString()),
+async function reserver(id, marge) {
+  const r = await fetch(URL_SB + '/rest/v1/campagnes?id=eq.' + id + '&statut=eq.prevue&envoyer_a=lte.' + encodeURIComponent(new Date(Date.now() + (marge || 0)).toISOString()),
     { method: 'PATCH', headers: Object.assign(H(), { Prefer: 'return=representation' }), body: JSON.stringify({ statut: 'envoi' }) });
   if (!r.ok) return null;
   return (await r.json())[0] || null;
@@ -145,8 +145,9 @@ module.exports = async (req, res) => {
       if (c0.shop_id) { const s = (await get('shops?select=owner&id=eq.' + c0.shop_id))[0]; if (!s || (s.owner !== me.id && !isAdmin)) return send(res, 403, { error: 'Interdit.' }); }
       else if (!isAdmin) return send(res, 403, { error: 'Réservé à l\'administrateur.' });
       if (c0.statut !== 'prevue') return send(res, 200, { envoye: c0.envoye, deja: true });
-      if (new Date(c0.envoyer_a) > Date.now()) return send(res, 200, { envoye: 0, programmee: true });
-      const c = await reserver(c0.id);
+      // 3 min de marge : l'horloge du téléphone peut avancer un peu
+      if (new Date(c0.envoyer_a) > Date.now() + 18e4) return send(res, 200, { envoye: 0, programmee: true });
+      const c = await reserver(c0.id, 18e4);
       if (!c) return send(res, 200, { envoye: 0, deja: true });
       return send(res, 200, { envoye: await envoyerCampagne(c) });
     }
