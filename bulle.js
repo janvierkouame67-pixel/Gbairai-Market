@@ -1,6 +1,8 @@
 /* Gbairai Market : bulle de discussion (aide + contact vendeur) */
 (function(){
-  var open=false,teaserShown=false;
+  var open=false,teaserShown=true;
+  var BASE=/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide|reglement)/;
+  function cache(){var mob=window.innerWidth<900;return open?!!document.getElementById('intro'):(BASE.test(ctx().h)||mob||!!document.getElementById('intro'));}
   var wa='<svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.1.1.6-.1 1.2z"/></svg>';
   var chat='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01" stroke-width="3"/></svg>';
   var x='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
@@ -79,7 +81,7 @@
       h='<div class="bl-teaser">Besoin d\'aide ? 👋<small>Posez votre question, on vous répond.</small></div>';
     }
     el.innerHTML=h+btn;
-    el.hidden=/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide|reglement)/.test(c.h)||!!document.getElementById('intro');
+    el.hidden=cache();
     var b=el.querySelector('.bl-body');if(b)b.scrollTop=b.scrollHeight;
   }
   el.addEventListener('click',function(e){
@@ -88,8 +90,9 @@
     else if(t.dataset.q){asked.push(t.dataset.q);render();}
   });
   window.addEventListener('hashchange',function(){open=false;render();});
-  setTimeout(function(){if(!teaserShown){teaserShown=true;if(!open)render();}},9000);
-  var obs=new MutationObserver(function(){if(el.hidden!==(/^(admin|vendeur|compte|chat-|discussion|recu-|commercial-|aide|reglement)/.test(ctx().h)||!!document.getElementById('intro')))render();});
+    var obs=new MutationObserver(function(){if(el.hidden!==cache())render();});
+  window.GBbulle={ouvrir:function(){open=true;render();}};
+  window.addEventListener('resize',function(){if(el.hidden!==cache())render();});
   obs.observe(document.body,{childList:true});
   setTimeout(render,300);
 })();

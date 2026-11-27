@@ -883,3 +883,66 @@ a.badge{text-decoration:none}
 .catbar span.catbar-ims{flex:none;flex-direction:row}
 :root[data-theme="dark"] .catbar{background:#21143A;border-color:#352650;color:var(--ink)}:root[data-theme="dark"] .catbar small{color:#C4B5FD}
 .aidebar>span:first-child,.catbar>span:first-child{flex:none}
+
+/* ================= Nouveau design (27 nov. 2026) ================= */
+/* 1. Plus rien ne flotte : « Télécharger » passe dans Moi (carte Installer), l'aide aussi */
+.dl-btn{display:none!important}
+/* 2. Barre du bas à 5 entrées avec « Vendre » au centre */
+.nav.nav5{left:50%;transform:translateX(-50%);bottom:0;width:min(560px,100%);height:auto;border-radius:22px 22px 0 0;background:var(--card);padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px));justify-content:space-around;align-items:flex-end;box-shadow:0 -8px 24px -10px rgba(76,29,149,.28);border:1px solid var(--line);border-bottom:0}
+.nav.nav5 a{flex:1;min-width:0;height:54px;color:#8A80A3;border-radius:14px;font-size:10.5px}
+.nav.nav5 a.on{background:none;box-shadow:none;color:var(--violet)}
+.nav.nav5 a.on svg{stroke:var(--violet)}
+.nav.nav5 a.nv-sell{height:auto;color:var(--orange-d);font-weight:800}
+.nav.nav5 .nv-plus{width:54px;height:54px;margin-top:-26px;margin-bottom:2px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(160deg,#FF9A4D,#FF6A00);box-shadow:0 5px 0 var(--orange-d),0 12px 20px -6px rgba(255,122,26,.6);border:3px solid var(--card)}
+.nav.nav5 a.nv-sell.on .nv-plus{background:linear-gradient(160deg,#8B5CF6,#5B21B6);box-shadow:0 5px 0 #2E1065,0 12px 20px -6px rgba(91,33,182,.6)}
+.nav.nav5 a .cnt{top:2px;right:calc(50% - 22px)}
+.wrap{padding-bottom:120px}
+/* 3. En-tête propre */
+.logo-name{white-space:nowrap}
+@media (max-width:899px){
+  .hd-vendre,.hd-compte{display:none!important}
+  .logo-name{font-size:20px}
+  .logo .logo-mark{width:36px;height:36px}
+}
+/* 4. Accueil plus court : les deux bandeaux « Comment ça marche » et « Achetez en sécurité » vont dans Moi et dans les icônes */
+.hd-safe{display:none}
+/* 5. Outils = 10 icônes rondes */
+.mg-row.mg-apps{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 4px;background:var(--card);border-radius:22px;padding:14px 6px 10px;box-shadow:0 10px 22px -16px rgba(76,29,149,.5)}
+.mg-apps .mg-tile{background:none;box-shadow:none;padding:0;gap:0}
+.mg-apps .mg-tile small{display:none}
+.mg-apps .mg-tile b{font-size:11px;font-weight:600;color:var(--ink);line-height:1.2}
+.mg-apps .mg-ico{width:50px;height:50px;border-radius:18px;font-size:24px;margin-bottom:5px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.07)}
+.mg-apps .mg-tile:nth-child(5n+1) .mg-ico{background:#FFE9D9}
+.mg-apps .mg-tile:nth-child(5n+2) .mg-ico{background:#EFE8FF}
+.mg-apps .mg-tile:nth-child(5n+3) .mg-ico{background:#DFF5EC}
+.mg-apps .mg-tile:nth-child(5n+4) .mg-ico{background:#FFE3E6}
+.mg-apps .mg-tile:nth-child(5n+5) .mg-ico{background:#FFF5CC}
+.mg-apps .mg-tile:active .mg-ico{transform:scale(.92)}
+@media (max-width:360px){.mg-row.mg-apps{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:900px){.mg-row.mg-apps{grid-template-columns:repeat(10,minmax(0,1fr));padding:18px 10px 14px}.mg-apps .mg-ico{width:58px;height:58px;font-size:27px}.mg-apps .mg-tile b{font-size:12.5px}}
+:root[data-theme="dark"] .mg-apps .mg-tile .mg-ico{background:#2A1D4A}
+/* 6. Touche ivoirienne : motif wax discret dans la grande bannière d'accueil */
+body[data-page="accueil"] .hero{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke-width='2.2'%3E%3Ccircle cx='18' cy='18' r='9' stroke='%23FF7A1A' stroke-opacity='.22'/%3E%3Ccircle cx='18' cy='18' r='3' fill='%23FFFFFF' fill-opacity='.25' stroke='none'/%3E%3Cpath d='M44 50l10-10 10 10-10 10z' stroke='%2316A37F' stroke-opacity='.2'/%3E%3Cpath d='M40 14c6-6 12 6 18 0' stroke='%23FFFFFF' stroke-opacity='.18'/%3E%3Cpath d='M6 54c6-6 12 6 18 0' stroke='%23FFC48A' stroke-opacity='.28'/%3E%3C/g%3E%3C/svg%3E"),linear-gradient(150deg,#6D28D9,#3B0F87)}
+@media (max-width:899px){body[data-page="accueil"] .hero h1{font-size:23px;line-height:1.15}body[data-page="accueil"] .hero{padding:18px}}
+/* 7. Fiche produit : barre « Commander sur WhatsApp » toujours visible */
+body[data-page="produit"] .nav{display:none}
+.buybar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:25;width:min(560px,100%);display:flex;gap:10px;padding:12px 16px calc(14px + env(safe-area-inset-bottom,0px));background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -10px 26px -10px rgba(76,29,149,.3);border:1px solid var(--line);border-bottom:0}
+.buybar .bb-cart{width:auto;padding:0 14px;flex-direction:column;gap:0;font-size:10.5px;height:54px;color:var(--violet)}
+.buybar .bb-wa{flex:1;height:54px;font-size:16px;gap:8px}
+.pp-seller{text-decoration:none;color:var(--ink);gap:12px;padding:12px 14px}
+/* 8. Page boutique façon profil */
+.shstats{display:grid;grid-template-columns:repeat(4,1fr);background:var(--soft);border-radius:16px;overflow:hidden}
+.shstats div{text-align:center;padding:10px 2px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
+.shstats div:last-child{border-right:0}
+.shstats b{font-family:var(--display);font-size:17px;font-weight:800;color:var(--ink)}
+.shstats span{font-size:11px;color:var(--muted)}
+.sh-acts{display:flex;gap:8px;align-items:center}
+.sh-acts .sh-wa{flex:1;height:48px}
+.sh-acts .sh-fol{height:48px;padding:0 16px;color:var(--violet);border:2px solid var(--violet);box-shadow:none;background:var(--card)}
+.sh-acts .sh-fol.on{color:#0E7A5F;border-color:#0E7A5F}
+.sh-acts .sh-ic{width:48px;height:48px;font-size:20px;flex:none}
+.tip-new{background:var(--soft);border-radius:14px;padding:10px 12px;color:var(--ink)}
+/* 9. Moi : l'aide et les raccourcis */
+.moi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.moi-it{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--card);border:0;border-radius:18px;padding:14px;text-decoration:none;color:var(--ink);font:600 14px var(--body);text-align:left;cursor:pointer;box-shadow:0 10px 20px -14px rgba(76,29,149,.5)}
+.moi-it i{font-style:normal;font-size:22px;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--soft)}

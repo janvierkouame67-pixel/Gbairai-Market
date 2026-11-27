@@ -372,13 +372,17 @@ function logoHTML(){const n=S.settings.nom||'Gbairai Market';return '<a class="l
 function trust(s){const c=S.conf[s.id]||{livrees:0,signalements:0},R=rating(s.id),days=Math.max(0,(Date.now()-new Date(s.created_at))/864e5);
   let sc=(s.verification==='verifie'?30:0)+Math.round(25*Math.min(1,Math.log10(1+c.livrees)/2))+(R.n?Math.round(20*(R.avg/5)*Math.min(1,R.n/5)):0)+Math.round(15*Math.min(1,days/180))+(c.signalements?-15*c.signalements:10);
   sc=Math.max(0,Math.min(100,sc));
-  const lab=sc>=80?['Très fiable','#0E7A5F']:sc>=60?['Fiable','#0E7A5F']:sc>=40?['À confirmer','#B45309']:['Prudence','#B91C1C'];
+  const jeune=!c.signalements&&(days<90||c.livrees<5);
+  const lab=sc>=80?['Très fiable','#0E7A5F']:sc>=60?['Fiable','#0E7A5F']:jeune?['Nouvelle boutique','#6D28D9']:sc>=40?['À confirmer','#B45309']:['Prudence','#B91C1C'];
   return {sc,lab:lab[0],col:lab[1],c,R,days,nouveau:days<14&&s.verification!=='verifie'};}
 function moisTxt(d){d=Math.floor(d);return d<1?'aujourd\'hui':d<31?d+' jour'+(d>1?'s':''):d<365?Math.floor(d/30)+' mois':Math.floor(d/365)+' an'+(d>=730?'s':'');}
+function shopStats(s,np){const t=trust(s),R=t.R;
+  const c=(v,l,cl)=>'<div><b'+(cl?' style="color:'+cl+'"':'')+'>'+v+'</b><span>'+l+'</span></div>';
+  return '<div class="shstats">'+c(np,'produit'+(np>1?'s':''))+c(t.c.livrees,'vente'+(t.c.livrees>1?'s':''))+c(R.n?String(R.avg.toFixed(1)).replace('.',',')+' ⭐':'—',R.n?R.n+' avis':'avis')+(s.verification==='verifie'?c('✔','vérifiée','#0E7A5F'):c('✨','nouvelle','#6D28D9'))+'</div>';}
 function trustHTML(s){const t=trust(s);
   const it=(e,b,x)=>'<div class="ck"><i>'+e+'</i><span><b>'+b+'</b>'+(x?' · '+x:'')+'</span></div>';
-  return '<section class="card stack trustcard"><div class="row" style="gap:14px"><div class="score" style="--p:'+t.sc+'%;--c:'+t.col+'"><b>'+t.sc+'</b></div><div><h2 style="font-size:16px">Indice de confiance</h2><div class="small" style="color:'+t.col+';font-weight:700">'+t.lab+'</div><div class="small muted">Calculé par '+esc(S.settings.nom||'Gbairai Market')+'</div></div></div>'+
-  (t.nouveau?'<div class="warn small"><b>⚠ Boutique nouvelle, pas encore vérifiée.</b> Payez seulement à la livraison.</div>':'')+
+  return '<section class="card stack trustcard"><div class="row" style="gap:14px"><div class="score" style="--p:'+(t.lab==='Nouvelle boutique'?100:t.sc)+'%;--c:'+t.col+'"><b>'+(t.lab==='Nouvelle boutique'?'✨':t.sc)+'</b></div><div><h2 style="font-size:16px">Indice de confiance</h2><div class="small" style="color:'+t.col+';font-weight:700">'+t.lab+'</div><div class="small muted">Calculé par '+esc(S.settings.nom||'Gbairai Market')+'</div></div></div>'+
+  (t.nouveau?'<div class="tip-new small">💡 <b>Boutique récente.</b> Pour votre première commande, payez de préférence à la livraison.</div>':'')+
   '<div class="stack" style="gap:8px">'+
   (s.verification==='verifie'?it('🪪','Identité vérifiée','pièce d\'identité contrôlée'):it('🪪','Identité pas encore vérifiée'))+
   it('📦',t.c.livrees+' commande'+(t.c.livrees>1?'s':'')+' livrée'+(t.c.livrees>1?'s':''),'confirmées par le code du client')+
@@ -468,7 +472,7 @@ async function clientSync(){
     S.synced=true;lsSet('gbairai-favoris',favs);lsSet('gbairai-suivis',follows);lsSet('gbairai-mes-commandes',myOrders);await clientSave();pushSync();render(true);
   }catch(e){}}
 function vCompte(){
-  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>'+prefsHTML()+'<a class="btn btn-w btn-block" href="#aide">💡 Aide : comment ça marche ?</a><a class="btn btn-w btn-block" href="#reglement">⚖️ Règlement intérieur</a>';
+  let h='<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Mon compte</h1></div>'+prefsHTML()+'<div class="moi-grid"><a class="moi-it" href="#aide"><i>💡</i>Comment ça marche ?</a><button type="button" class="moi-it" data-a="bulle"><i>💬</i>Discuter avec l\'équipe</button><a class="moi-it" href="#verifier"><i>🛡️</i>Vérifier un numéro</a><a class="moi-it" href="#vendeur"><i>🏪</i>'+(myShop()?'Ma boutique':'Je suis vendeur')+'</a></div><a class="btn btn-w btn-block" href="#reglement">⚖️ Règlement intérieur</a>';
   if(!S.user){const t=ui.cTab||'creer';
     return h+'<section class="hero"><span class="ball o" style="right:-46px;top:-46px;width:100px;height:100px"></span><h2 style="color:#fff;font-size:22px;margin:0">Votre compte Gbairai</h2><p style="margin:6px 0 0">Gratuit. Retrouvez vos commandes, vos favoris et vos boutiques sur tous vos téléphones.</p></section>'+
     '<div class="seg2">'+[['creer','Créer mon compte'],['login','Me connecter']].map(x=>'<button type="button" class="chip'+(t===x[0]?' on':'')+'" data-a="cTab" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
@@ -548,11 +552,11 @@ setInterval(()=>{if(document.hidden||!S.loaded)return;const h=(location.hash||''
 function vAccueil(){
   const cnt={};S.shops.filter(s=>s.statut==='actif').forEach(s=>{const v=villeOf(s);cnt[v]=(cnt[v]||0)+1;});
   const qs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).concat(villes()).filter((v,i,a)=>a.indexOf(v)===i).slice(0,12);
-  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="icon-btn" href="#compte" aria-label="Mon compte">'+ic('user',20,S.user?'#0E7A5F':'#5B21B6')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
+  return '<div class="wrap"><div class="row between">'+logoHTML()+'<div class="row" style="gap:8px"><a class="icon-btn" href="#commandes" aria-label="Mes commandes">'+ic('truck',20,'#5B21B6')+'</a><a class="icon-btn favlink" href="#favoris" aria-label="Mes favoris">'+ic('heart',20,'#9D174D')+(favs.length?'<span class="cnt">'+favs.length+'</span>':'')+'</a><a class="icon-btn hd-compte" href="#compte" aria-label="Mon compte">'+ic('user',20,S.user?'#0E7A5F':'#5B21B6')+'</a>'+(isAdmin()?'<a class="btn btn-w btn-s" href="#admin">Admin</a>':'<a class="btn btn-w btn-s hd-vendre" href="#vendeur">Je suis vendeur</a>')+'</div></div>'+
   storiesHTML()+annonceHTML('clients')+feteHTML()+'<section class="hero"><span class="ball o" style="right:-30px;top:-30px;width:140px;height:140px"></span><span class="ball g" style="right:70px;top:70px;width:38px;height:38px"></span><h1>Toutes les boutiques de Côte d\'Ivoire, au même endroit</h1><p>Choisissez, puis commandez directement sur WhatsApp</p>'+
   '<label class="search">'+ic('search',20,'#6B5B8C')+'<span hidden>Rechercher</span><input id="q" type="search" placeholder="Robe, sneakers, iPhone, boutique…" value="'+esc(ui.q)+'" data-i="q"></label>'+(window.GBX&&GBX.homeSearch?GBX.homeSearch():'')+'</section>'+(window.GBX&&GBX.home?GBX.home():'')+
   '<div class="chips">'+['Tous'].concat(qs).map(x=>'<button type="button" class="chip'+(ui.quartier===x?' on':'')+'" data-a="quartier" data-id="'+esc(x)+'">'+(x==='Tous'?'Toute la Côte d\'Ivoire':esc(x)+(cnt[x]?' <small>'+cnt[x]+'</small>':''))+'</button>').join('')+'</div>'+
-  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+promoAppHTML()+'<a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
+  bannersHTML()+homeTicker()+mesBoutiquesHTML()+rayonsHTML()+promoAppHTML()+'<div class="hd-safe"><a class="safebar aidebar" href="#aide"><span style="font-size:20px">💡</span><span><b>Comment ça marche ?</b><small>Guides et vidéos pour bien utiliser l\'appli</small></span>'+ic('back',16,'#5B21B6')+'</a><a class="safebar" href="#verifier">'+ic('shield',20,'#0E7A5F')+'<span><b>Achetez en sécurité</b><small>Vérifiez un numéro avant de payer</small></span>'+ic('back',16,'#0E7A5F')+'</a></div>'+flashHTML()+'<div id="results" class="stack">'+results()+'</div></div>';
 }
 function homeTicker(){const act=S.shops.filter(s=>s.statut==='actif'),ok=new Set(act.map(s=>s.id));
   const vis=S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id));
@@ -619,11 +623,12 @@ function vBoutique(slug){
   '<div class="card stack" style="margin-top:-70px;position:relative"><div class="row">'+avatar(s,64)+'<div style="min-width:0"><h1 class="row" style="font-size:19px;gap:6px">'+esc(s.nom)+verifBadge(s)+'</h1><div class="muted small row" style="gap:4px;margin-top:3px">'+ic('pin',14)+esc(place(s))+(s.adresse?', '+esc(s.adresse):'')+'</div>'+presenceHTML(s)+ratingHTML(s.id)+'</div></div>'+
   (s.description?'<p style="margin:0;font-size:14px;line-height:1.5;color:#3D3256">'+esc(s.description)+'</p>':'')+
   (s.livraison_zones?'<div class="small muted">Livraison : '+esc(s.livraison_zones)+(s.livraison_frais?' · '+esc(s.livraison_frais)+' F':'')+'</div>':'')+
-  '<div class="grid2"><a class="btn btn-g btn-s" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',18,'#fff')+'WhatsApp</a>'+(s.telegram?'<a class="btn btn-t btn-s" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'">'+ic('tg',18,'#1E4FA8')+'Telegram</a>':'<button type="button" class="btn btn-w btn-s" data-a="copy" data-text="'+esc(shopUrl(s))+'">'+ic('link',16)+'Copier le lien</button>')+'</div><a class="btn btn-v btn-s btn-block" href="#chat-'+s.id+'">💬 Discuter ici avec la boutique</a>'+followHTML(s)+'</div>'+
-  trustHTML(s)+
+  shopStats(s,allP.length)+
+  '<div class="sh-acts"><a class="btn btn-g sh-wa" target="_blank" rel="noopener" href="https://wa.me/'+waNum(s.whatsapp)+'">'+ic('wa',20,'#fff')+'WhatsApp</a>'+(isFollow(s.id)?'<button type="button" class="btn btn-w sh-fol on" data-a="follow" data-id="'+s.id+'" aria-pressed="true">✔ Abonné</button>':'<button type="button" class="btn btn-w sh-fol" data-a="follow" data-id="'+s.id+'" aria-pressed="false">+ Suivre</button>')+'<a class="icon-btn sh-ic" href="#chat-'+s.id+'" aria-label="Discuter ici avec la boutique">💬</a>'+(s.telegram?'<a class="icon-btn sh-ic" target="_blank" rel="noopener" href="https://t.me/'+esc(s.telegram.replace(/^@/,''))+'" aria-label="Telegram">'+ic('tg',18,'#1E4FA8')+'</a>':'')+'</div></div>'+
+  
   (window.GBX&&GBX.boutique?GBX.boutique(s):'')+
   '<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+allP.length+'</span></div>'+rayChips+
-  (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+
+  (prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Cette boutique n\'a pas encore de produits.</p>')+trustHTML(s)+
   (lines.length?'<a class="btn btn-v btn-block" href="#panier" style="justify-content:space-between"><span>'+lines.reduce((a,l)=>a+l.qty,0)+' article(s) · <span class="num">'+fmtN(tot)+' FCFA</span></span><span>Voir le panier</span></a>':'')+
   promoWaHTML(s)+pointsHTML(s)+reviewsHTML(s)+tipsHTML()+'<button type="button" class="linkbtn" data-a="report" data-id="'+s.id+'">'+ic('flag',14)+'Signaler cette boutique</button>'+alsoHTML(s)+'</div>';
 }
@@ -655,8 +660,9 @@ function vProduit(id){
   (p.description?'<div><h2 style="font-size:13px;font-family:var(--body);font-weight:700;margin-bottom:6px">Description</h2><p style="margin:0;line-height:1.55;color:#3D3256;white-space:pre-line">'+esc(p.description)+'</p></div>':'')+
   (tailles.length?'<div><h2 style="font-size:13px;font-family:var(--body);font-weight:700;margin-bottom:8px">Taille</h2><div class="row wrapx">'+tailles.map(t=>'<button type="button" class="chip'+(ui.taille===t?' on':'')+'" data-a="taille" data-id="'+esc(t)+'" style="min-width:48px;height:44px">'+esc(t)+'</button>').join('')+'</div></div>':'')+
   '<div class="row wrapx">'+(p.stock>0?'<span class="badge b-green">En stock</span>':'<span class="badge b-grey">Rupture de stock</span>')+(p.stock>0&&p.stock<=3?'<span class="badge b-orange">Plus que '+p.stock+'</span>':'')+'<a class="badge b-violet" href="#rayon-'+esc(p.categorie||'autre')+'">'+esc(catName(p.categorie))+(p.type?' · '+esc(p.type):'')+'</a></div></div>'+
+  '<a class="card row pp-seller" href="#boutique-'+esc(s.slug)+'">'+avatar(s,42)+'<span style="min-width:0;flex:1"><b class="row" style="gap:5px">'+esc(s.nom)+verifBadge(s)+'</b>'+(presenceHTML(s)||'<span class="small muted">'+esc(place(s))+'</span>')+'</span><span class="small" style="color:var(--violet);font-weight:700">Voir ›</span></a>'+
   (window.GBX&&GBX.produit?GBX.produit(p,s):'')+
-  (p.stock>0?'<div class="row"><button type="button" class="btn btn-v" style="flex:1" data-a="addT" data-id="'+p.id+'">Ajouter au panier</button><a class="btn btn-g" style="width:58px;padding:0" target="_blank" rel="noopener" data-a="order" data-shop="'+s.id+'" data-single="'+p.id+'" data-oid="'+sid+'" href="https://wa.me/'+waNum(s.whatsapp)+'?text='+encodeURIComponent(orderText(s,single,sid))+'" aria-label="Commander ce produit sur WhatsApp">'+ic('wa',24,'#fff')+'</a></div>':'')+'</div>';
+  (p.stock>0?'<div class="buybar"><button type="button" class="btn btn-w bb-cart" data-a="addT" data-id="'+p.id+'" aria-label="Ajouter au panier">'+ic('bag',22,'#5B21B6')+'<span>Panier</span></button><a class="btn btn-g bb-wa" target="_blank" rel="noopener" data-a="order" data-shop="'+s.id+'" data-single="'+p.id+'" data-oid="'+sid+'" href="https://wa.me/'+waNum(s.whatsapp)+'?text='+encodeURIComponent(orderText(s,single,sid))+'">'+ic('wa',22,'#fff')+'Commander sur WhatsApp</a></div>':'')+'</div>';
 }
 function vPanier(){
   const groups={};cart.forEach((l,i)=>{const p=prodById(l.pid);if(!p)return;(groups[p.shop_id]=groups[p.shop_id]||[]).push({p,qty:l.qty,taille:l.taille,i});});
@@ -1483,10 +1489,10 @@ function aNotif(){const st=S.settings,pub=st.vapid_public||'';
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='categories'||h==='credits-photos'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
-  const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
+  const base=h.startsWith('rayon-')||h==='rayons'||h==='categories'?'categories':h==='compte'||h==='aide'||h==='reglement'||h==='discussions'||h==='favoris'||h==='verifier'||h.startsWith('chat-')?'compte':h.startsWith('boutique-')||h.startsWith('produit-')||h==='credits-photos'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const it=(id,label,icon,extra,cls)=>'<a href="#'+id+'" class="'+(cls||'')+(base===id?' on':'')+'">'+(cls?'<span class="nv-plus">'+ic(icon,24,'#fff',2.6)+'</span>':ic(icon,22))+label+(extra||'')+'</a>';
   const c=cartCount();
-  return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
+  return '<nav class="nav nav5" aria-label="Navigation">'+it('accueil','Accueil','home')+it('categories','Rayons','search')+(isAdmin()?it('admin','Admin','shield','','nv-sell'):it('vendeur','Vendre','plus','','nv-sell'))+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+it('compte','Moi','user')+'</nav>';
 }
 let lastHash=null;
 function render(keep){
@@ -1519,6 +1525,7 @@ function render(keep){
   else html=vAccueil();
   if(h.startsWith('produit-')||h==='panier'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('suivi-')||h.startsWith('recu-')||h.startsWith('commercial-')||(!S.user&&(h==='vendeur'||h==='admin')))html=html.replace('class="wrap"','class="wrap narrow"');
   if(S.error)html='<div class="wrap" style="padding-bottom:0"><div class="err">'+esc(S.error)+' <button type="button" class="btn btn-w btn-s" data-a="reload">Réessayer</button></div></div>'+html;
+  document.body.setAttribute('data-page',h.split('-')[0]);
   const y=window.scrollY;app.innerHTML=html+nav(h);setTimeout(()=>autoTour(h),900);
   if(keep&&lastHash===h)window.scrollTo(0,y);else window.scrollTo(0,0);lastHash=h;
 }
@@ -1597,6 +1604,7 @@ const A={
   litBack:()=>{ui.lit=null;render();},
   litClose:t=>act(async()=>{await q(sb.from('conversations').update({signale:false}).eq('id',t.dataset.id));ui.lit=null;},'Litige clos'),
   litBlock:t=>{const c=(S.litiges||[]).find(x=>x.id===t.dataset.id);if(!c)return;act(()=>q(sb.from('blacklist').upsert({phone:waNum(c.client_tel),motif:'Litige : '+(c.motif||'discussion signalée')})),'Numéro bloqué');},
+  bulle:()=>{if(window.GBbulle)GBbulle.ouvrir();},
   follow:t=>{const id=t.dataset.id,on=!isFollow(id),s=shopById(id);setFollow(id,on);if(ui.nbAb[id]!=null)ui.nbAb[id]=Math.max(0,ui.nbAb[id]+(on&&pushOn()?1:!on&&pushOn()?-1:0));render(true);
     if(on&&s){if(!pushOn()&&pushOK()&&S.settings.vapid_public)askAlerts(s);else toast('Vous suivez '+s.nom);}else if(s)toast('Vous ne suivez plus '+s.nom);},
   pushOn:()=>{document.getElementById('layer').innerHTML='';pushEnable().then(()=>render(true));},
