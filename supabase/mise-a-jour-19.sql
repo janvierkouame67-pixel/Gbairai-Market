@@ -89,3 +89,6 @@ begin
 exception when others then
   raise notice 'Envoi automatique non activé (%). Les promos programmées partiront quand quelqu''un ouvre le site.', sqlerrm;
 end $$;
+
+-- Le serveur qui envoie les notifications doit pouvoir lire et marquer les promos
+grant all on public.campagnes to service_role;
