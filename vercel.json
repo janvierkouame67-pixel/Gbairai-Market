@@ -40,6 +40,10 @@
     {
       "path": "/api/resume",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/magique",
+      "schedule": "0 19 * * *"
     }
   ]
 }

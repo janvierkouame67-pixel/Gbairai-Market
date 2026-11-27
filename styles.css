@@ -745,3 +745,77 @@ a.badge{text-decoration:none}
 :root[data-theme="dark"] .mg-ico{background:#2A1D4A}
 @media (prefers-reduced-motion:reduce){.mg-tile.on .mg-ico{animation:none}}
 .v360 img[hidden]{display:none}
+
+/* ===== Les 10 nouvelles idées (plus2.js) ===== */
+.py-row2{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px}
+.py-modal .py-sheet{max-width:440px}
+.py-dark .py-sheet{background:#160C2E;color:#fff}.py-dark .py-sheet .muted,.py-dark .py-sheet .small{color:#D9CFF2}.py-dark .linkbtn{color:#fff}
+.py-full{padding:0}.py-full .py-sheet{max-width:520px;height:100%;max-height:100vh;border-radius:0;padding:0;gap:0;display:flex;flex-direction:column}
+@media (min-width:600px){.py-full{padding:16px}.py-full .py-sheet{height:auto;max-height:94vh;border-radius:24px}}
+.py-ba{gap:10px}.py-ba-img{aspect-ratio:1;border-radius:16px;overflow:hidden;background:#F1EEF7;display:grid;place-items:center;margin-top:4px}
+.py-ba-img img,.py-ba-img canvas{width:100%;height:100%;object-fit:cover;display:block}
+.py-spin{width:34px;height:34px;border-radius:50%;border:4px solid #E4DCF8;border-top-color:#7C3AED;animation:pySpin 0.9s linear infinite}
+@keyframes pySpin{to{transform:rotate(360deg)}}
+.py-fond{width:52px;height:52px;border-radius:14px;border:3px solid transparent;cursor:pointer;box-shadow:0 0 0 1px #E4DCF8}
+.py-fond.on{border-color:#7C3AED}
+.py-f-blanc{background:#fff}.py-f-orange{background:linear-gradient(135deg,#FFD9B0,#FF9A4D)}.py-f-nuit{background:linear-gradient(135deg,#3B1A78,#140A2B)}
+.py-f-wax{background:repeating-linear-gradient(45deg,#F59E0B 0 8px,#1E3A8A 8px 16px,#DC2626 16px 24px,#1E3A8A 24px 32px)}
+.py-opts{border:1px solid #E4DCF8;border-radius:14px;padding:4px 12px}.py-opts label{padding:9px 0;border-bottom:1px solid #F1EEF7;font-size:14px}.py-opts label:last-child{border:0}
+.py-opts input,.py-switch input{width:22px;height:22px;accent-color:#0E7A5F}
+.py-vid-wrap{position:relative;align-self:center}.py-vid{width:min(270px,70vw);aspect-ratio:9/16;border-radius:18px;background:#000;display:block;margin:0 auto}
+.py-rec{position:absolute;top:10px;left:10px;background:#DC2626;color:#fff;font-weight:800;font-size:12px;padding:3px 9px;border-radius:99px;animation:mgPulse 1s infinite}
+.py-dark .chip{background:#2A1D4A;color:#fff;border-color:#3D2E66}.py-dark .chip.on{background:#FF7A1A;border-color:#FF7A1A}
+.py-iacard{gap:12px;text-decoration:none;color:inherit;background:linear-gradient(90deg,#F3EEFF,#E9FBF3);border:1px solid #DCD0FA}
+.py-iacard b{display:block}.py-bot{font-size:30px}.py-online{font-size:11.5px;font-weight:800;color:#0E7A5F;background:#DDF7EC;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.py-chatpage{display:flex;flex-direction:column;gap:12px}
+.py-chat{display:flex;flex-direction:column;gap:8px;max-height:58vh;overflow:auto;padding:4px 2px}
+.py-msg{max-width:84%;padding:10px 13px;border-radius:16px;font-size:14.5px;line-height:1.45;background:var(--card);box-shadow:0 6px 16px -12px rgba(76,29,149,.5)}
+.py-msg.moi{align-self:flex-end;background:#DCF8C6;color:#1B1033;border-bottom-right-radius:4px}.py-msg.ia{align-self:flex-start;border-bottom-left-radius:4px}
+.py-typing{display:flex;gap:4px}.py-typing i{width:7px;height:7px;border-radius:50%;background:#9D8CC4;animation:pyDot 1s infinite}.py-typing i:nth-child(2){animation-delay:.15s}.py-typing i:nth-child(3){animation-delay:.3s}
+@keyframes pyDot{0%,80%,100%{opacity:.3}40%{opacity:1}}
+.py-prods{display:flex;flex-direction:column;gap:6px;max-width:90%}
+.py-prod{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:6px 8px;border:1px solid #EDE7FB}
+.py-chatin{gap:8px}.py-chatin .in{flex:1}
+.py-pbtns{gap:8px}
+.py-magline{background:#1B1033;color:#fff;border-radius:14px;padding:10px 12px;font-weight:700;font-size:13.5px}
+.py-try{position:relative;flex:1;min-height:52vh;background:#000;overflow:hidden}
+.py-try video,.py-try canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.py-try canvas{touch-action:none;cursor:grab}
+.py-tlabel{position:absolute;top:12px;left:12px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px}
+.py-tclose{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:18px;cursor:pointer}
+.py-thint{position:absolute;left:12px;right:12px;bottom:12px;text-align:center;color:#fff;font-size:13px;font-weight:600;text-shadow:0 1px 4px #000}
+.py-tbar{background:#fff;color:#1B1033;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.py-dark .py-tbar .small{color:#6B5B8C}
+.py-tpick{display:flex;gap:8px;overflow-x:auto}.py-tpick button{flex:none;width:62px;height:62px;padding:3px;border-radius:14px;border:2px solid #EDE7FB;background:#fff;cursor:pointer}.py-tpick button.on{border-color:#7C3AED}
+.py-cag .py-cagimg{display:block;border-radius:16px;overflow:hidden}
+.py-part{padding:8px 0;border-bottom:1px solid #F1EEF7;text-decoration:none;color:inherit;gap:8px}.py-part:last-child{border-bottom:0}
+.py-tr3{gap:12px;align-items:flex-start;cursor:pointer;border:2px solid transparent}.py-tr3.on{border-color:#FF7A1A;background:#FFF4EA}
+.py-tr3 input{width:22px;height:22px;accent-color:#FF7A1A;margin-top:2px}.py-tr3 b{display:block}
+.py-trv,.py-livgps{border-top:1px dashed #E4DCF8;padding-top:10px}
+.py-coins{border-radius:22px;padding:20px;color:#fff;background:linear-gradient(135deg,#F59E0B,#EA580C 55%,#9333EA);display:flex;flex-direction:column;gap:4px;box-shadow:0 18px 30px -18px rgba(234,88,12,.8)}
+.py-coins b{font-family:var(--title,Sora),sans-serif;font-size:40px;line-height:1.1}
+.py-cbar{height:8px;border-radius:99px;background:rgba(255,255,255,.3);overflow:hidden;margin-top:6px}.py-cbar i{display:block;height:100%;background:#fff;border-radius:99px}
+.py-coinok{background:#FFF7E6;border:1px solid #FCD9A5}
+.py-magic{border-radius:22px;padding:18px 16px;color:#fff;text-align:center;background:radial-gradient(circle at 50% 0,#5B2BB5,#1B0F3D 70%);display:flex;flex-direction:column;gap:6px;align-items:stretch;margin-bottom:14px;box-shadow:0 18px 34px -20px rgba(27,15,61,.9)}
+.py-moon{font-size:34px}.py-mt{font-family:var(--title,Sora),sans-serif;font-size:24px;letter-spacing:.5px}
+.py-mcd .cd{display:inline-block;background:#FF7A1A;color:#fff;font-weight:800;font-size:26px;border-radius:12px;padding:4px 12px;font-variant-numeric:tabular-nums}
+.py-mcd.small .cd{font-size:16px;padding:2px 8px}
+.py-mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:6px 0}
+@media (min-width:700px){.py-mgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.py-mtile{position:relative;background:#fff;color:#1B1033;border-radius:16px;padding:8px;text-decoration:none;display:flex;flex-direction:column;gap:2px;text-align:left;font-size:13px}
+.py-mtile s{color:#9D8CC4}.py-mtile b:last-of-type{color:#C2410C}.py-mtile small{color:#C2410C;font-size:11px}
+.py-mpct{position:absolute;top:12px;left:12px;z-index:1;background:#FF7A1A;color:#fff;font-weight:800;font-size:12px;padding:2px 8px;border-radius:99px}
+.py-vmagic{background:linear-gradient(135deg,#F3EEFF,#FFF1E6)}
+.py-switch{gap:12px;padding:6px 0;cursor:pointer}
+.py-livgo{text-align:center;align-items:center}.py-livgo.on{background:#E9FBF3;border:1px solid #A7E8CC}
+.py-livmap iframe{width:100%;height:240px;border:0;border-radius:16px}
+.py-bars{width:100%;max-width:340px;align-self:center}
+.py-alert{border:2px solid #FF7A1A;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:3px;background:#FFF7F0}.py-alert span:first-of-type{color:#C2410C;font-weight:700}
+.py-iaconseil{background:#F3EEFF;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+:root[data-theme="dark"] .py-iacard,:root[data-theme="dark"] .py-vmagic{background:linear-gradient(90deg,#2A1D4A,#1E2E28);border-color:#3D2E66}
+:root[data-theme="dark"] .py-msg.moi{background:#1F5B3A;color:#fff}
+:root[data-theme="dark"] .py-prod,:root[data-theme="dark"] .py-tbar,:root[data-theme="dark"] .py-tpick button{background:var(--card);border-color:#3D2E66;color:var(--ink)}
+:root[data-theme="dark"] .py-tr3.on,:root[data-theme="dark"] .py-coinok,:root[data-theme="dark"] .py-alert{background:#3A2418}
+:root[data-theme="dark"] .py-iaconseil{background:#2A1D4A}
+:root[data-theme="dark"] .py-part,:root[data-theme="dark"] .py-opts label{border-color:#3D2E66}
+@media (prefers-reduced-motion:reduce){.py-rec,.py-typing i,.py-spin{animation:none}}
