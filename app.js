@@ -141,8 +141,10 @@ const nrm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
 const nbTypes=()=>CATS().reduce((a,c)=>a+c.types.length,0);
 const tHash=t=>{let h=0;for(const ch of String(t))h=(h*31+ch.charCodeAt(0))%997;return h%70;};
 const tHue=id=>{const i=CATS().findIndex(c=>c.id===id);return (Math.max(0,i)*47+260)%360;};
-// Image d'une sous-catégorie : photo choisie par l'admin, sinon (côté client) la photo d'un vrai article, sinon le dessin.
+// Image d'une sous-catégorie : photo choisie par l'admin, sinon la vraie photo (icons/photos, voir #credits-photos), sinon la photo d'un article, sinon le dessin.
+const GBP=window.GB_PHOTOS||{};
 function tSrc(c,t,prods){const o=(c.tph||{})[t];if(o)return o;
+  const gp=GBP[c.id+'|'+t];if(gp)return 'icons/photos/'+gp;
   if(prods){const p=prods.find(p=>p.type===t&&photosOf(p)[0]);if(p)return photosOf(p)[0];}
   const k=TIMG[c.id+'|'+t]||TIMG[c.id]||'1f6cd';return 'icons/types/'+k+'.svg';}
 function tTile(c,t,o){o=o||{};const src=o.src||tSrc(c,t,o.prods),ph=!/\.svg$/.test(src);
@@ -169,11 +171,14 @@ function tSync(){const el=document.getElementById('f-tpick');if(el){el.innerHTML
 function typeCounts(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id)),m={};
   S.products.forEach(p=>{if(p.visible&&p.stock>0&&ok.has(p.shop_id)&&p.type){const k=(p.categorie||'autre')+'|'+p.type;m[k]=(m[k]||0)+1;}});return m;}
 // Page « Toutes les catégories » : plus de 1000 sous-catégories en images, avec recherche
+function vCredits(){const L=window.GB_CREDITS||[];
+  return '<div class="wrap"><div class="row">'+back('#categories')+'<h1 style="font-size:20px">Crédits photos</h1></div><p class="small muted" style="margin:0">Les photos des catégories viennent de Pixabay (pixabay.com), sous licence Pixabay. Merci à leurs auteurs.</p><section class="card stack" style="gap:6px">'+
+  (L.length?L.map(x=>'<div class="small" style="line-height:1.35"><b>'+esc(x[0])+'</b> : '+esc(x[2]||'auteur inconnu')+' · '+esc(x[3]||'licence libre')+' · <a href="'+esc(x[1])+'" target="_blank" rel="noopener">source</a></div>').join(''):'<p class="muted" style="margin:0">Chargement…</p>')+'</section></div>';}
 function vCategories(){const cs=CATS(),tc=typeCounts(),qv=ui.cq||'',all=S.products.filter(p=>p.visible&&p.stock>0);
   return '<div class="wrap"><div class="row">'+back('#rayons')+'<h1 style="font-size:20px">Toutes les catégories</h1></div>'+
   '<p class="muted small" style="margin:0">'+fmtN(nbTypes())+' catégories dans '+cs.length+' rayons. Touchez une image pour voir les articles.</p>'+
   '<label class="search" style="margin:0">'+ic('search',20,'#6B5B8C')+'<span hidden>Chercher une catégorie</span><input type="search" placeholder="Attiéké, perruque, pneu, frigo…" value="'+esc(qv)+'" data-i="cq" id="cq"></label>'+
-  '<div class="stack" id="cat-res" style="gap:18px">'+catRes(qv,cs,tc,all)+'</div></div>';}
+  '<div class="stack" id="cat-res" style="gap:18px">'+catRes(qv,cs,tc,all)+'</div><p class="small muted" style="text-align:center">Photos : Pixabay (licence Pixabay). <a href="#credits-photos">Crédits photos</a></p></div>';}
 function catRes(qv,cs,tc,all){cs=cs||CATS();tc=tc||typeCounts();all=all||S.products.filter(p=>p.visible&&p.stock>0);
   const go=(c,t)=>' data-a="goType" data-c="'+esc(c.id)+'" data-t="'+esc(t)+'"';
   if(qv&&qv.trim().length>=2){const r=tFind(qv,120);return r.length?'<div class="tgrid">'+r.map(x=>tTile(x.c,x.t,{prods:all,n:tc[x.c.id+'|'+x.t],sub:x.c.nom,attrs:go(x.c,x.t)})).join('')+'</div>':'<p class="muted">Aucune catégorie pour « '+esc(qv)+' ».</p>';}
@@ -1463,7 +1468,7 @@ function aNotif(){const st=S.settings,pub=st.vapid_public||'';
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='categories'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='categories'||h==='credits-photos'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -1480,6 +1485,7 @@ function render(keep){
   else if(h.startsWith('rayon-'))html=vRayon(decodeURIComponent(h.slice(6)));
   else if(h==='rayons')html=vRayons();
   else if(h==='categories')html=vCategories();
+  else if(h==='credits-photos'){if(!window.GB_CREDITS&&!window.gbCredLoading){window.gbCredLoading=1;const sc=document.createElement('script');sc.src='credits-photos.js';sc.onload=()=>render(true);document.head.appendChild(sc);}html=vCredits();}
   else if(h.startsWith('chat-'))html=vChat(decodeURIComponent(h.slice(5)));
   else if(h==='discussions')html=vDiscussions();
   else if(h==='compte')html=vCompte();
