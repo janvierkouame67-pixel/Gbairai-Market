@@ -28,6 +28,7 @@ const EMAIL_DOMAIN='vendeur.gbairai.app';
 
 const PAL=[['#FBCFE8','#EC4899','#9D174D'],['#DDD6FE','#8B5CF6','#4C1D95'],['#FFE1B8','#FB923C','#C2410C'],['#A7F3D0','#10B981','#065F46'],['#BFDBFE','#3B82F6','#1E3A8A'],['#FDE68A','#EAB308','#854D0E']];
 const ICON={
+  chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/>',
   mode:'<path d="M9 3h6l-1 5 4 12H6l4-12-1-5z"/>',
   beaute:'<rect x="6" y="9" width="12" height="12" rx="3"/><path d="M10 9V6h4v3"/>',
   tel:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>',
@@ -763,9 +764,18 @@ function vVendeur(){
   if(!s)return '<div class="wrap">'+logoHTML()+(isAdmin()?'<div class="note">Vous êtes connecté en administrateur. <a href="#admin">Aller à l\'administration</a></div>':'')+'<form class="card stack" data-f="newshop"><h1 style="font-size:19px">Créer ma boutique</h1><label class="lbl">Nom de la boutique<input class="in" id="n-nom" name="nom" required></label><label class="lbl">Numéro WhatsApp<input class="in" id="n-wa" name="phone" type="tel" required value="'+esc((S.user.user_metadata||{}).phone||'')+'"></label>'+locFields('n')+'<label class="lbl">Catégorie<select class="in" id="n-c" name="categorie">'+CATS().map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nom)+'</option>').join('')+'</select></label><button class="btn btn-v btn-block" type="submit">Créer</button></form><button type="button" class="btn btn-w btn-block" data-a="logout">Se déconnecter</button></div>';
   const tabs=[['accueil','Accueil'],['messages','Messages'],['produits','Produits'],['commandes','Commandes'],['clients','Clients'],['stock','Stock'],['caisse','Caisse'],['equipe','Équipe'],['abonnement','Abonnement'],['reglages','Réglages']];if(window.GBX&&GBX.vendeur)tabs.splice(1,0,['plus','✨ Outils magiques']);
   const pending=S.orders.filter(o=>o.shop_id===s.id&&o.statut==='envoyee').length;
-  const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,equipe:vvEquipe,abonnement:vvAbonnement,reglages:vvReglages,plus:s=>GBX.vendeur(s)}[ui.vTab]||vvAccueil;
-  return '<div class="wrap"><div class="row between"><div class="row">'+avatar(s,44)+'<div><h1 style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><span class="row" style="gap:8px"><button type="button" class="helpbtn" data-a="tabHelp" aria-label="Aide sur cet écran">?</button><a class="btn btn-w btn-s" href="#boutique-'+esc(s.slug)+'">Voir ma page</a></span></div>'+
-  '<div class="tabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+(ui.tabHelp?tabHelpHTML(ui.vTab):'')+f(s)+'</div>';
+  const f={messages:vvMessages,accueil:vvAccueil,produits:vvProduits,stock:vvStock,caisse:vvCaisse,commandes:vvCommandes,clients:vvClients,equipe:vvEquipe,abonnement:vvAbonnement,reglages:vvReglages,plus:s=>GBX.vendeur(s),menu:s=>vvMenu(s,tabs,pending)}[ui.vTab]||vvAccueil;
+  return '<div class="wrap"><div class="row between vhead"><div class="row vh-id">'+avatar(s,44)+'<div class="vh-txt"><h1 class="vh-nom" style="font-size:19px">'+esc(s.nom)+'</h1><div class="small" style="color:'+(s.statut==='actif'?'var(--green)':'#9A3412')+';font-weight:600">'+(s.statut==='actif'?'Boutique en ligne':'Boutique suspendue')+'</div></div></div><span class="row" style="gap:8px"><button type="button" class="helpbtn" data-a="tabHelp" aria-label="Aide sur cet écran">?</button><a class="btn btn-w btn-s vh-voir" href="#boutique-'+esc(s.slug)+'" aria-label="Voir ma page"><span class="vh-eye">👁️</span><span class="vh-lab">Voir ma page</span></a></span></div>'+
+  '<div class="tabs vtabs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" class="tab'+(ui.vTab===t[0]?' on':'')+'" data-a="vtab" data-id="'+t[0]+'">'+t[1]+(t[0]==='commandes'&&pending?' <span class="badge b-orange">'+pending+'</span>':'')+(t[0]==='messages'&&unreadV()?' <span class="badge b-orange">'+unreadV()+'</span>':'')+'</button>').join('')+'</div>'+(ui.tabHelp?tabHelpHTML(ui.vTab):'')+f(s)+'</div>';
+}
+/* Menu « Plus » de l'espace vendeur : toutes les rubriques en icônes rondes */
+function vvMenu(s,tabs,pending){
+  const IC={accueil:['📊','Tableau de bord','#EFE8FF'],messages:['💬','Messages','#DFF5EC'],plus:['✨','Outils magiques','#FFE9D9'],produits:['📦','Produits','#EFE8FF'],commandes:['🧾','Commandes','#FFE9D9'],clients:['👥','Clients','#FFF5CC'],stock:['📉','Stock','#FFE3E6'],caisse:['💰','Caisse','#DFF5EC'],equipe:['🧑‍🤝‍🧑','Équipe','#EFE8FF'],abonnement:['⭐','Abonnement','#FFF5CC'],reglages:['⚙️','Réglages','#E0F2FE']};
+  const low=shopProducts(s.id).filter(p=>p.stock>0&&p.stock<=3).length;
+  const bd={commandes:pending,messages:unreadV(),stock:low};
+  const it=x=>{const c=IC[x[0]]||['•',x[1],'#EFE8FF'];return '<button type="button" class="vm-it" data-a="vtab" data-id="'+x[0]+'"><i style="background:'+c[2]+'">'+c[0]+(bd[x[0]]?'<em>'+bd[x[0]]+'</em>':'')+'</i>'+c[1]+'</button>';};
+  const ln=(href,e,l,bg)=>'<a class="vm-it" href="'+href+'"><i style="background:'+bg+'">'+e+'</i>'+l+'</a>';
+  return '<section class="card stack"><h2 style="font-size:17px">Ma boutique</h2><div class="vm-grid">'+tabs.map(it).join('')+ln('#boutique-'+esc(s.slug),'👁️','Voir ma page','#FFE3E6')+ln('#aide','💡','Aide','#FFF5CC')+ln('#accueil','🏠','Retour au site','#E0F2FE')+'</div></section>';
 }
 const unreadV=()=>(S.convs||[]).reduce((a,c)=>a+(c.non_lus_vendeur||0),0);
 function vvAccueil(s){
@@ -1492,6 +1502,12 @@ function nav(h){
   const base=h.startsWith('rayon-')||h==='rayons'||h==='categories'?'categories':h==='compte'||h==='aide'||h==='reglement'||h==='discussions'||h==='favoris'||h==='verifier'||h.startsWith('chat-')?'compte':h.startsWith('boutique-')||h.startsWith('produit-')||h==='credits-photos'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra,cls)=>'<a href="#'+id+'" class="'+(cls||'')+(base===id?' on':'')+'">'+(cls?'<span class="nv-plus">'+ic(icon,24,'#fff',2.6)+'</span>':ic(icon,22))+label+(extra||'')+'</a>';
   const c=cartCount();
+  if(h==='vendeur'&&S.user&&!isAdmin()&&myShop()){
+    const pend=S.orders.filter(o=>o.shop_id===myShop().id&&o.statut==='envoyee').length,un=unreadV(),cur=ui.vTab||'accueil';
+    const vb=(id,label,icon,n,on)=>'<button type="button" data-a="vtab" data-id="'+id+'" class="'+(on?'on':'')+'">'+icon+label+(n?'<span class="cnt">'+n+'</span>':'')+'</button>';
+    const menuOn=!['accueil','commandes','messages','produits'].includes(cur);
+    return '<nav class="nav nav5 nav-v" aria-label="Navigation vendeur">'+vb('accueil','Tableau',ic('home',22),0,cur==='accueil')+vb('commandes','Commandes',ic('truck',22),pend,cur==='commandes')+'<button type="button" data-a="newProd" class="nv-sell'+(cur==='produits'?' on':'')+'"><span class="nv-plus">'+ic('plus',24,'#fff',2.6)+'</span>Produit</button>'+vb('messages','Messages',ic('chat',22),un,cur==='messages')+vb('menu','Plus','<span class="nv-dots">•••</span>',0,menuOn)+'</nav>';
+  }
   return '<nav class="nav nav5" aria-label="Navigation">'+it('accueil','Accueil','home')+it('categories','Rayons','search')+(isAdmin()?it('admin','Admin','shield','','nv-sell'):it('vendeur','Vendre','plus','','nv-sell'))+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+it('compte','Moi','user')+'</nav>';
 }
 let lastHash=null;
