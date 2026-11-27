@@ -1,0 +1,8 @@
+{
+  "name": "gbairai-market",
+  "private": true,
+  "description": "Gbairai Market : site statique + fonctions Vercel (dossier api).",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  }
+}
