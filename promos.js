@@ -63,8 +63,9 @@ async function envoyer(f){const g=G();if(P.busy)return;const admin=f.dataset.adm
   if(!P.titre)return g.toast('Écrivez un titre, par exemple « -20 % sur tout ».');
   if(!admin&&!s)return;
   let quandD=new Date();if(P.quand==='plus'){quandD=iso(P.date||localInput(new Date(Date.now()+36e5)));if(!quandD||quandD<Date.now()-6e4)return g.toast('Choisissez une date et une heure à venir.');}
-  const row={titre:P.titre,texte:P.texte,image:/^https:\/\//.test(P.img)?P.img:'',lien:/^#[\w-]{1,80}$/.test(P.lien)?P.lien:'',cible:admin?P.cible:'abonnes',shop_id:s?s.id:null};if(P.quand==='plus')row.envoyer_a=quandD.toISOString();
-  if(admin&&!s&&!row.lien)row.lien='#accueil';
+  const row={titre:P.titre,texte:P.texte,image:/^https:\/\//.test(P.img)?P.img:'',lien:/^#[\w-]{1,80}$/.test(P.lien)?P.lien:'',cible:admin?P.cible:'abonnes',shop_id:admin?null:s.id};if(P.quand==='plus')row.envoyer_a=quandD.toISOString();
+  // Admin : la boutique mise en avant passe par le lien (sa page ou un de ses articles), pas par shop_id
+  if(admin&&!row.lien)row.lien=s?'#boutique-'+s.slug:'#accueil';
   P.busy=true;P.res='';g.render(true);
   try{const r=await g.q(g.sb.from('campagnes').insert(row).select('id').single());
     if(P.quand==='plus')P.res='🗓️ Promo programmée pour '+quand(quandD)+'. Elle partira toute seule.';

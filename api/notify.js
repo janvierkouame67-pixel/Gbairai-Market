@@ -39,10 +39,19 @@ async function envoyerCampagne(c) {
     shop = (await get('shops?select=id,nom,slug,logo,statut&id=eq.' + c.shop_id))[0];
     if (!shop || shop.statut !== 'actif') { await patchCampagne(c.id, { statut: 'annulee' }); return 0; }
   }
+  // Promo de l'admin qui met une boutique en avant : on retrouve la boutique par le lien, pour afficher son logo
+  let vedette = null;
+  if (!shop) {
+    const mb = /^#boutique-([\w-]{1,80})$/.exec(c.lien || ''), mp = /^#produit-([0-9a-f-]{36})$/i.exec(c.lien || '');
+    try {
+      if (mb) vedette = (await get('shops?select=logo&slug=eq.' + encodeURIComponent(mb[1])))[0];
+      else if (mp) { const p = (await get('products?select=shop_id&id=eq.' + mp[1]))[0]; if (p) vedette = (await get('shops?select=logo&id=eq.' + p.shop_id))[0]; }
+    } catch (e) {}
+  }
   const filtre = c.shop_id ? '&shops=cs.%7B' + c.shop_id + '%7D' : c.cible === 'vendeurs' ? '&vendeur_shop=not.is.null' : c.cible === 'clients' ? '&vendeur_shop=is.null' : '';
   const lien = /^#[\w-]{1,80}$/.test(c.lien) ? c.lien : shop ? '#boutique-' + shop.slug : '#accueil';
   const data = { title: c.titre, body: c.texte || '', url: '/' + lien, image: c.image || undefined,
-    icon: (shop && /^https:\/\//.test(shop.logo || '') ? shop.logo : undefined), tag: 'promo-' + c.id, campagne: c.id };
+    icon: [shop, vedette].map(x => x && x.logo).find(l => /^https:\/\//.test(l || '')) || undefined, tag: 'promo-' + c.id, campagne: c.id };
   let n = 0;
   for (let from = 0; from < PROMO_MAX; from += 1000) {
     const subs = await get('push_subs?select=endpoint,p256dh,auth&promos=is.true' + filtre + '&order=endpoint&offset=' + from + '&limit=1000');
