@@ -104,7 +104,7 @@ const ui={aideQ:'',aidePub:null,aideOpen:null,tabHelp:false,aEditAide:null,story
 
 const shopById=id=>S.shops.find(s=>s.id===id);
 const prodById=id=>S.products.find(p=>p.id===id);
-const RAYONS=[
+const RAYONS0=[
   ['mode','Mode femme',['Robes','Pagnes & wax','Hauts','Jupes','Pantalons','Ensembles','Lingerie','Tenues traditionnelles']],
   ['mode_homme','Mode homme',['Chemises','T-shirts & polos','Pantalons & jeans','Costumes','Tenues traditionnelles','Vestes']],
   ['chaussures','Chaussures',['Baskets','Talons','Sandales & claquettes','Chaussures de ville','Chaussures enfant']],
@@ -118,11 +118,17 @@ const RAYONS=[
   ['enfants','Enfants & bébé',['Vêtements enfant','Jouets','Puériculture']],
   ['sport','Sport',['Tenues de sport','Chaussures de sport','Équipements']],
   ['autre','Autres',[]]];
+// Rayons et sous-catégories (plus de 1000) : voir categories.js. Si ce fichier manque, on garde la petite liste ci-dessus.
+const GBR=Array.isArray(window.GB_RAYONS)&&window.GB_RAYONS.length?window.GB_RAYONS:null;
+const TIMG={};if(GBR)GBR.forEach(r=>{TIMG[r[0]]=r[2];String(r[3]||'').split('|').forEach(x=>{const k=x.split('~');if(k[0]&&k[1])TIMG[r[0]+'|'+k[0]]=k[1];});});
+const RAYONS=GBR?GBR.map(r=>[r[0],r[1],String(r[3]||'').split('|').map(x=>x.split('~')[0]).filter(Boolean)]).concat(RAYONS0.filter(r0=>r0[0]!=='autre'&&!GBR.some(r=>r[0]===r0[0])),[['autre','Autres',[]]]).map(r=>{const o=RAYONS0.find(x=>x[0]===r[0]);return o?[r[0],r[1],o[2].concat(r[2].filter(t=>!o[2].includes(t)))]:r;}):RAYONS0;
 const uniqA=a=>a.filter((x,i)=>x&&a.indexOf(x)===i);
-function CATS(){const st=S.settings.categories||[],by={};st.forEach(c=>{if(c&&c.id)by[c.id]=c;});
-  const base=RAYONS.map(r=>{const c=by[r[0]]||{};return {id:r[0],nom:r[1],photo:c.photo||(r[0]==='autre'?null:'icons/rayons/'+r[0]+'.jpg'),types:uniqA(r[2].concat(c.types||[])),extra:c.types||[],own:!!c.photo,base:true};});
+let catsMemo=null,catsKey;
+function CATS(){if(catsMemo&&catsKey===S.settings.categories)return catsMemo;catsKey=S.settings.categories;return catsMemo=CATS0();}
+function CATS0(){const st=S.settings.categories||[],by={};st.forEach(c=>{if(c&&c.id)by[c.id]=c;});
+  const base=RAYONS.map(r=>{const c=by[r[0]]||{};return {id:r[0],nom:r[1],photo:c.photo||(r[0]==='autre'?null:'icons/rayons/'+r[0]+'.jpg'),types:uniqA(r[2].concat(c.types||[])),extra:c.types||[],own:!!c.photo,base:true,tph:c.tphotos||{}};});
   const ids=new Set(RAYONS.map(r=>r[0]));
-  const extra=st.filter(c=>c&&c.id&&!ids.has(c.id)).map(c=>({id:c.id,nom:c.nom,photo:c.photo||null,types:uniqA(c.types||[]),extra:c.types||[],own:!!c.photo,base:false}));
+  const extra=st.filter(c=>c&&c.id&&!ids.has(c.id)).map(c=>({id:c.id,nom:c.nom,photo:c.photo||null,types:uniqA(c.types||[]),extra:c.types||[],own:!!c.photo,base:false,tph:c.tphotos||{}}));
   return base.slice(0,-1).concat(extra,base.slice(-1));}
 const catName=id=>{if(id==='divers')return 'Divers';const c=CATS().find(c=>c.id===id);return c?c.nom:'Autre';};
 const DIVERS_OPT='<option value="divers">🛍 Divers : je vends plusieurs sortes d\'articles</option>';
@@ -131,12 +137,54 @@ function shopRayonsLabel(s){const r=shopRayons(s);if(r.length>1)return r.slice(0
 const typeOpts=(cid,cur)=>{const c=CATS().find(x=>x.id===cid),t=c?c.types.slice():[];if(cur&&!t.includes(cur))t.push(cur);
   return '<option value="">'+(t.length?'Choisir…':'(aucun)')+'</option>'+t.map(x=>'<option'+(x===cur?' selected':'')+'>'+esc(x)+'</option>').join('');};
 function rImg(c,i){return c.photo?'<img src="'+esc(c.photo)+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'r-ico\'}))">':'<span class="r-ico" style="background:'+grad(i||0)+'">'+ic(ICON[c.id]?c.id:'autre',34,'#fff',1.8)+'</span>';}
+const nrm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[’']/g,' ');
+const nbTypes=()=>CATS().reduce((a,c)=>a+c.types.length,0);
+const tHash=t=>{let h=0;for(const ch of String(t))h=(h*31+ch.charCodeAt(0))%997;return h%70;};
+const tHue=id=>{const i=CATS().findIndex(c=>c.id===id);return (Math.max(0,i)*47+260)%360;};
+// Image d'une sous-catégorie : photo choisie par l'admin, sinon (côté client) la photo d'un vrai article, sinon le dessin.
+function tSrc(c,t,prods){const o=(c.tph||{})[t];if(o)return o;
+  if(prods){const p=prods.find(p=>p.type===t&&photosOf(p)[0]);if(p)return photosOf(p)[0];}
+  const k=TIMG[c.id+'|'+t]||TIMG[c.id]||'1f6cd';return 'icons/types/'+k+'.svg';}
+function tTile(c,t,o){o=o||{};const src=o.src||tSrc(c,t,o.prods),ph=!/\.svg$/.test(src);
+  const at=o.href?'a href="'+o.href+'"':'button type="button"';
+  return '<'+at+' class="tcat'+(o.on?' on':'')+'"'+(o.attrs||'')+' title="'+esc(t)+'"><span class="tcat-im'+(ph?' ph':'')+'" style="--h:'+(o.h==null?(tHue(c.id)+tHash(t))%360:o.h)+'"><img src="'+esc(src)+'" alt="" loading="lazy" decoding="async"></span>'+(o.n?'<small>'+o.n+'</small>':'')+'<b>'+esc(t)+'</b>'+(o.sub?'<i>'+esc(o.sub)+'</i>':'')+'</'+(o.href?'a':'button')+'>';}
+// Recherche dans toutes les sous-catégories (sans accents) ; les noms qui commencent par le mot passent devant.
+function tFind(qq,max){const w=nrm(qq).trim();if(w.length<2)return [];const out=[];
+  CATS().forEach((c,ci)=>{const cn=nrm(c.nom);c.types.forEach(t=>{const n=nrm(t);const sc=n.startsWith(w)?3:(' '+n).includes(' '+w)?2:n.includes(w)?1:cn.includes(w)?0.5:0;if(sc)out.push({c,t,sc,ci});});});
+  return out.sort((a,b)=>b.sc-a.sc||a.ci-b.ci).slice(0,max||60);}
+function tBestType(cid,txt){const c=CATS().find(x=>x.id===cid);if(!c||!txt)return txt||'';const w=nrm(txt).trim();
+  const ex=c.types.find(t=>nrm(t)===w);if(ex)return ex;
+  const inc=c.types.filter(t=>{const n=nrm(t);return n.includes(w)||w.includes(n);}).sort((a,b)=>b.length-a.length)[0];if(inc)return inc;
+  const ws=w.split(/[^a-z0-9]+/).filter(x=>x.length>2).map(x=>x.replace(/s$/,''));let best='',bs=0;
+  c.types.forEach(t=>{const tw=nrm(t).split(/[^a-z0-9]+/).filter(x=>x.length>2).map(x=>x.replace(/s$/,''));const k=ws.filter(x=>tw.includes(x)).length;if(k>bs){bs=k;best=t;}});
+  return best||txt;}
+// Choix en images de la sous-catégorie, dans le formulaire produit
+function tpickHTML(){const f=document.querySelector('form[data-f="produit"]'),ft=document.getElementById('f-type'),qi=document.getElementById('f-tq');
+  const cid=((f&&f.querySelector('input[name="categorie"]:checked'))||{}).value,cur=ft?ft.value:'',qv=qi?qi.value:'';return tpickInner(cid,cur,qv);}
+function tpickInner(cid,cur,qv){
+  if(qv&&qv.trim().length>=2){const r=tFind(qv,48);return r.length?r.map(x=>tTile(x.c,x.t,{on:x.c.id===cid&&x.t===cur,sub:x.c.nom,attrs:' data-a="tpick" data-c="'+esc(x.c.id)+'" data-t="'+esc(x.t)+'"'})).join(''):'<p class="small muted" style="grid-column:1/-1;margin:0">Rien trouvé. Choisissez le rayon puis tapez votre propre type dans « Autre ».</p>';}
+  const c=CATS().find(x=>x.id===cid);if(!c||!c.types.length)return '';
+  return c.types.map(t=>tTile(c,t,{on:t===cur,attrs:' data-a="tpick" data-c="'+esc(c.id)+'" data-t="'+esc(t)+'"'})).join('');}
+function tSync(){const el=document.getElementById('f-tpick');if(el){el.innerHTML=tpickHTML();const on=el.querySelector('.tcat.on');if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest'});}}
+function typeCounts(){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id)),m={};
+  S.products.forEach(p=>{if(p.visible&&p.stock>0&&ok.has(p.shop_id)&&p.type){const k=(p.categorie||'autre')+'|'+p.type;m[k]=(m[k]||0)+1;}});return m;}
+// Page « Toutes les catégories » : plus de 1000 sous-catégories en images, avec recherche
+function vCategories(){const cs=CATS(),tc=typeCounts(),qv=ui.cq||'',all=S.products.filter(p=>p.visible&&p.stock>0);
+  return '<div class="wrap"><div class="row">'+back('#rayons')+'<h1 style="font-size:20px">Toutes les catégories</h1></div>'+
+  '<p class="muted small" style="margin:0">'+fmtN(nbTypes())+' catégories dans '+cs.length+' rayons. Touchez une image pour voir les articles.</p>'+
+  '<label class="search" style="margin:0">'+ic('search',20,'#6B5B8C')+'<span hidden>Chercher une catégorie</span><input type="search" placeholder="Attiéké, perruque, pneu, frigo…" value="'+esc(qv)+'" data-i="cq" id="cq"></label>'+
+  '<div class="stack" id="cat-res" style="gap:18px">'+catRes(qv,cs,tc,all)+'</div></div>';}
+function catRes(qv,cs,tc,all){cs=cs||CATS();tc=tc||typeCounts();all=all||S.products.filter(p=>p.visible&&p.stock>0);
+  const go=(c,t)=>' data-a="goType" data-c="'+esc(c.id)+'" data-t="'+esc(t)+'"';
+  if(qv&&qv.trim().length>=2){const r=tFind(qv,120);return r.length?'<div class="tgrid">'+r.map(x=>tTile(x.c,x.t,{prods:all,n:tc[x.c.id+'|'+x.t],sub:x.c.nom,attrs:go(x.c,x.t)})).join('')+'</div>':'<p class="muted">Aucune catégorie pour « '+esc(qv)+' ».</p>';}
+  return cs.filter(c=>c.types.length).map(c=>'<section class="stack" style="gap:8px"><div class="sec-title" style="margin:0"><h2>'+esc(c.nom)+'</h2><span class="cnt-pill">'+c.types.length+'</span><a href="#rayon-'+esc(c.id)+'" class="small" style="font-weight:700;margin-left:auto">Ouvrir ›</a></div><div class="tgrid">'+
+    c.types.map(t=>tTile(c,t,{prods:all,n:tc[c.id+'|'+t],attrs:go(c,t)})).join('')+'</div></section>').join('');}
 function rayonProds(id){const ok=new Set(S.shops.filter(s=>s.statut==='actif').map(s=>s.id));return S.products.filter(p=>p.visible&&p.stock>0&&ok.has(p.shop_id)&&(p.categorie||'autre')===id);}
 function rayonsHTML(){
   const tiles=dup=>CATS().map((c,i)=>{const n=rayonProds(c.id).length;if(c.id==='autre'&&!n)return '';
     return '<a class="rayon" href="#rayon-'+esc(c.id)+'"'+(dup?' aria-hidden="true" tabindex="-1"':'')+'>'+rImg(c,i)+(n?'<small>'+n+'</small>':'')+'<b>'+esc(c.nom)+'</b></a>';}).join('');
-  return '<div class="sec-title"><h2>Tous les rayons</h2><a href="#rayons" class="small" style="font-weight:700;margin-left:auto">Voir tout ›</a></div><div class="rail" data-rail><div class="rail-track">'+tiles(false)+tiles(true)+'</div></div>';}
-function vRayons(){return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Tous les rayons</h1></div><div class="rayons">'+CATS().map((c,i)=>{const n=rayonProds(c.id).length;
+  return '<div class="sec-title"><h2>Tous les rayons</h2><a href="#rayons" class="small" style="font-weight:700;margin-left:auto">Voir tout ›</a></div><div class="rail" data-rail><div class="rail-track">'+tiles(false)+tiles(true)+'</div></div><a class="safebar catbar" href="#categories"><span class="catbar-ims" aria-hidden="true">'+['mode|Robes','alimentation|Attiéké','tel|Smartphones','beaute|Perruques','auto|Pneus'].map(k=>'<img src="icons/types/'+(TIMG[k]||'1f6cd')+'.svg" alt="" loading="lazy">').join('')+'</span><span><b>'+fmtN(nbTypes())+' catégories en images</b><small>Trouvez exactement ce que vous cherchez</small></span>'+ic('back',16,'#5B21B6')+'</a>';}
+function vRayons(){return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">Tous les rayons</h1></div><a class="safebar catbar" href="#categories"><span style="font-size:22px">🗂️</span><span><b>Voir les '+fmtN(nbTypes())+' catégories en images</b><small>Avec une recherche : attiéké, perruque, pneu…</small></span>'+ic('back',16,'#5B21B6')+'</a><div class="rayons">'+CATS().map((c,i)=>{const n=rayonProds(c.id).length;
   return '<a class="rayon" href="#rayon-'+esc(c.id)+'">'+rImg(c,i)+(n?'<small>'+n+'</small>':'')+'<b>'+esc(c.nom)+'</b></a>';}).join('')+'</div></div>';}
 (function railLoop(){let el=null,pos=0,last=0,pause=0;const red=matchMedia('(prefers-reduced-motion: reduce)');
   const step=t=>{const r=document.querySelector('[data-rail]'),tr=r&&r.firstElementChild,k=tr?tr.children.length/2:0;
@@ -161,7 +209,12 @@ function vRayon(id){
   const shops=S.shops.filter(s=>sh.has(s.id)).sort((a,b)=>(b.vedette-a.vedette)||((b.verification==='verifie')-(a.verification==='verifie')));
   return '<div class="wrap"><div class="row">'+back('#accueil')+'<h1 style="font-size:20px">'+esc(c.nom)+'</h1></div>'+
   '<div class="rcover">'+rImg(c,i)+'<div><h2>'+esc(c.nom)+'</h2><p>'+all.length+' article'+(all.length>1?'s':'')+' · '+shops.length+' boutique'+(shops.length>1?'s':'')+'</p></div></div>'+
-  (types.length?'<div class="chips">'+[['','Tout',all.length]].concat(types.map(t=>[t,t,tc[t]||0])).map(x=>'<button type="button" class="chip'+((ui.type||'')===x[0]?' on':'')+'" data-a="rtype" data-id="'+esc(x[0])+'">'+esc(x[1])+(x[2]?' <small>'+x[2]+'</small>':'')+'</button>').join('')+'</div>':'')+
+  (types.length?(()=>{const ord=types.map((t,k)=>[t,k]).sort((a,b)=>((tc[b[0]]||0)-(tc[a[0]]||0))||(a[1]-b[1])).map(x=>x[0]),lim=ui.tall===id?ord.length:11,sh=ord.slice(0,lim);
+    if(ui.type&&!sh.includes(ui.type))sh.push(ui.type);
+    return '<div class="sec-title" style="margin:4px 0 0"><h2>Catégories</h2><span class="cnt-pill">'+types.length+'</span>'+(ui.type?'<button type="button" class="linkbtn small" data-a="rtype" data-id="" style="margin-left:auto;font-weight:700">Tout voir ✕</button>':'')+'</div><div class="tgrid">'+
+    tTile(c,'Tout',{src:c.photo||'icons/types/'+(TIMG[c.id]||'1f6cd')+'.svg',on:!ui.type,n:all.length,attrs:' data-a="rtype" data-id=""'})+
+    sh.map(t=>tTile(c,t,{prods:all,on:ui.type===t,n:tc[t]||0,attrs:' data-a="rtype" data-id="'+esc(t)+'"'})).join('')+'</div>'+
+    (ord.length>lim?'<button type="button" class="btn btn-w btn-block" data-a="tall" data-id="'+esc(c.id)+'">Voir les '+ord.length+' catégories de ce rayon</button>':'');})():'')+
   (list.length?'<div class="pgrid">'+list.map(pCard).join('')+'</div>':'<div class="card stack" style="text-align:center;padding:24px"><b>Pas encore d\'article ici</b><span class="muted small">Les vendeurs ajoutent de nouveaux articles chaque jour. Revenez bientôt !</span></div>')+
   (shops.length?'<div class="sec-title"><h2>Boutiques de ce rayon</h2><span class="cnt-pill">'+shops.length+'</span></div><div class="shops">'+shops.map(shopCard).join('')+'</div>':'')+'</div>';
 }
@@ -506,7 +559,9 @@ function results(){
     .sort((a,b)=>(b.vedette-a.vedette)||((b.verification==='verifie')-(a.verification==='verifie')));
   const prods=S.products.filter(p=>{const s=shopById(p.shop_id);return s&&ok(s)&&p.visible&&p.stock>0&&(!ui.cat||p.categorie===ui.cat)&&(!qq||(p.nom+' '+(p.description||'')+' '+s.nom+' '+(p.type||'')+' '+catName(p.categorie)).toLowerCase().includes(qq));});
   ui.qN=shops.length+prods.length;
-  let h='<div class="sec-title"><h2>Boutiques</h2><span class="cnt-pill">'+shops.length+'</span></div>';
+  const tf=qq.length>=2?tFind(qq,16):[],tcn=tf.length?typeCounts():{};
+  let h=tf.length?'<div class="sec-title"><h2>Catégories</h2><span class="cnt-pill">'+tf.length+'</span></div><div class="trail">'+tf.map(x=>tTile(x.c,x.t,{n:tcn[x.c.id+'|'+x.t],sub:x.c.nom,attrs:' data-a="goType" data-c="'+esc(x.c.id)+'" data-t="'+esc(x.t)+'"'})).join('')+'</div>':'';
+  h+='<div class="sec-title"><h2>Boutiques</h2><span class="cnt-pill">'+shops.length+'</span></div>';
   h+=shops.length?'<div class="shops">'+shops.map(shopCard).join('')+'</div>':'<p class="muted">Aucune boutique pour l\'instant.'+(S.shops.length?'':' <a href="#vendeur">Créez la première !</a>')+'</p>';
   h+='<div class="sec-title"><h2>Produits</h2><span class="cnt-pill">'+prods.length+'</span></div>';
   h+=prods.length?'<div class="pgrid">'+prods.map(pCard).join('')+'</div>':'<p class="muted">Aucun produit trouvé.</p>';
@@ -732,7 +787,7 @@ function voixHTML(){if(!SR_API||!window.GbVoix)return '';const on=!!voixRec;
   return '<div class="voix'+(on?' on':'')+'"><button type="button" class="micbtn" data-a="voix" aria-label="'+(on?'J\'ai fini de parler':'Dire mon produit au micro')+'"><span>'+(on?'⏹':'🎤')+'</span></button><div class="voix-t"><b>'+(on?'Je vous écoute… touchez quand c\'est fini':'Dites votre produit')+'</b><span id="voix-txt" class="small">'+(on?'…':'Ex. : « Robe rouge en wax, 8 000 francs, taille M et L, il en reste 3 »')+'</span></div></div>';}
 function voixFill(text){const f=document.querySelector('form[data-f="produit"]');if(!f||!text)return 0;const r=GbVoix.parse(text);let n=0;
   const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!==''){el.value=v;el.classList.add('voixok');n++;}};
-  if(r.categorie&&CATS().some(c=>c.id===r.categorie)){const rb=f.querySelector('input[name="categorie"][value="'+r.categorie+'"]');if(rb){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));const ft=document.getElementById('f-type');if(ft){ft.innerHTML=typeOpts(r.categorie,r.type||'');ft.value=r.type||'';ft.classList.add('voixok');}n++;rb.closest('.rayon').scrollIntoView({block:'nearest',inline:'center'});}}
+  if(r.categorie&&CATS().some(c=>c.id===r.categorie)){const rb=f.querySelector('input[name="categorie"][value="'+r.categorie+'"]');if(rb){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));const ft=document.getElementById('f-type');if(ft){const bt=tBestType(r.categorie,r.type||'');ft.innerHTML=typeOpts(r.categorie,bt);ft.value=bt;ft.classList.add('voixok');tSync();}n++;rb.closest('.rayon').scrollIntoView({block:'nearest',inline:'center'});}}
   set('f-nom',r.nom);set('f-prix',r.prix);set('f-stock',r.stock);set('f-tailles',r.tailles);
   if(r.prix_barre){set('f-barre',r.prix_barre);const d=f.querySelector('.promo-box');if(d)d.open=true;}
   const de=document.getElementById('f-desc');if(de&&!de.value.trim())set('f-desc',r.description);
@@ -756,7 +811,8 @@ function productForm(s){
   const pf=p.promo_fin?new Date(p.promo_fin):null,pfv=pf?new Date(pf-pf.getTimezoneOffset()*6e4).toISOString().slice(0,16):'';
   const cs=CATS(),cur=(formCache&&formCache.categorie)||(cs.some(c=>c.id===p.categorie)?p.categorie:cs[0].id),curT=formCache?formCache.type:(p.type||'');
   const pick='<div class="stack" style="gap:6px"><span class="small" style="font-weight:700">1. Choisissez le type d\'article</span><div class="rpick">'+cs.map((c,i)=>'<label class="rayon'+(c.id===cur?' on':'')+'"><input type="radio" name="categorie" value="'+esc(c.id)+'"'+(c.id===cur?' checked':'')+'>'+rImg(c,i)+'<b>'+esc(c.nom)+'</b></label>').join('')+'</div></div>'+
-    '<label class="lbl">2. Précisez<select class="in" id="f-type" name="type">'+typeOpts(cur,curT)+'</select></label>';
+    '<div class="stack" style="gap:6px"><span class="small" style="font-weight:700">2. Précisez en touchant une image</span><label class="search tq">'+ic('search',18,'#6B5B8C')+'<span hidden>Chercher une catégorie</span><input type="search" id="f-tq" placeholder="Chercher parmi '+fmtN(nbTypes())+' catégories…" autocomplete="off"></label><div class="tgrid tpick" id="f-tpick">'+tpickInner(cur,curT,'')+'</div>'+
+    '<label class="lbl small">ou dans la liste<select class="in" id="f-type" name="type">'+typeOpts(cur,curT)+'</select></label></div>';
   const del=ui.edit!=='new'?(ui.confirm==='del-'+p.id?'<div class="warn row between wrapx">Supprimer ce produit ? <span class="row"><button type="button" class="btn btn-w btn-s" data-a="cancelConfirm">Non</button><button type="button" class="btn btn-o btn-s" data-a="delProd" data-id="'+p.id+'">Oui, supprimer</button></span></div>':'<button type="button" class="btn btn-w btn-s" data-a="confirm" data-id="del-'+p.id+'">'+ic('trash',16)+'Supprimer ce produit</button>'):'';
   return '<form class="card stack" data-f="produit"><div class="row between"><h2 style="font-size:17px">'+(ui.edit==='new'?'Ajouter un produit':'Modifier le produit')+'</h2><button type="button" class="btn btn-w btn-s" data-a="cancelEdit">Annuler</button></div>'+(ui.edit==='new'?voixHTML():'')+(window.GBX&&GBX.formProduit?GBX.formProduit(p):'')+
   '<div class="row" style="gap:10px"><label class="btn btn-w" style="height:92px;width:110px;flex-direction:column;border:2px dashed #A78BFA;background:#F5F0FF;color:#5B21B6;box-shadow:none;font-size:12px">'+ic('camera',26,'#5B21B6',2)+'Photo<input type="file" accept="image/*" data-file="photo" hidden></label><div style="flex:1;max-width:120px">'+tile({photo:photoPreview,categorie:p.categorie,couleur:p.couleur},92,40)+'</div>'+(photoPreview?'<button type="button" class="btn btn-w btn-s" data-a="rmPhoto">Retirer</button>':'')+'</div>'+
@@ -1375,9 +1431,9 @@ function saveCat(id,patch){const list=(S.settings.categories||[]).slice();let i=
   return q(sb.from('settings').update({categories:list}).eq('id',1));}
 function aCatalogue(){
   const st=S.settings,cs=CATS(),nt=cs.reduce((a,c)=>a+c.types.length,0);
-  return '<div class="gridf"><section class="card stack" style="grid-column:1/-1"><h2 style="font-size:17px">Rayons et types d\'articles <span class="cnt-pill">'+cs.length+' rayons · '+nt+' types</span></h2><p class="small muted" style="margin:0">Touchez une photo pour la remplacer par la vôtre. Ajoutez des types si un vendeur ne trouve pas le sien.</p><div class="radm">'+
+  return '<div class="gridf"><section class="card stack" style="grid-column:1/-1"><h2 style="font-size:17px">Rayons et types d\'articles <span class="cnt-pill">'+cs.length+' rayons · '+nt+' types</span></h2><p class="small muted" style="margin:0">Touchez une photo pour la remplacer par la vôtre. Ouvrez « catégories » pour changer l\'image d\'une catégorie, ou ajoutez-en une si un vendeur ne trouve pas la sienne.</p><div class="radm">'+
   cs.map((c,i)=>{const n=S.products.filter(p=>(p.categorie||'autre')===c.id).length;
-    return '<div class="radm-it"><label class="rayon" title="Changer la photo">'+rImg(c,i)+'<b>'+esc(c.nom)+'</b><input type="file" accept="image/*" data-file="catphoto" data-id="'+esc(c.id)+'" hidden></label><div class="stack" style="gap:6px;min-width:0"><span class="small muted">'+n+' produit'+(n>1?'s':'')+(c.own?' · <button type="button" class="linkbtn" data-a="rmCatPhoto" data-id="'+esc(c.id)+'">photo d\'origine</button>':'')+(!c.base?' · <button type="button" class="linkbtn" data-a="delCat" data-id="'+esc(c.id)+'">retirer le rayon</button>':'')+'</span><div class="row wrapx" style="gap:5px">'+c.types.map(t=>'<span class="tchip">'+esc(t)+(c.extra.includes(t)?'<button type="button" data-a="rmCatType" data-id="'+esc(c.id)+'" data-t="'+esc(t)+'" aria-label="Retirer '+esc(t)+'">×</button>':'')+'</span>').join('')+'</div><form class="row" data-f="catType" data-id="'+esc(c.id)+'" style="gap:6px"><input class="in" name="nom" required maxlength="40" placeholder="Nouveau type" aria-label="Nouveau type pour '+esc(c.nom)+'" style="height:38px"><button class="btn btn-w btn-s" type="submit">Ajouter</button></form></div></div>';}).join('')+'</div>'+
+    return '<div class="radm-it"><label class="rayon" title="Changer la photo">'+rImg(c,i)+'<b>'+esc(c.nom)+'</b><input type="file" accept="image/*" data-file="catphoto" data-id="'+esc(c.id)+'" hidden></label><div class="stack" style="gap:6px;min-width:0"><span class="small muted">'+n+' produit'+(n>1?'s':'')+(c.own?' · <button type="button" class="linkbtn" data-a="rmCatPhoto" data-id="'+esc(c.id)+'">photo d\'origine</button>':'')+(!c.base?' · <button type="button" class="linkbtn" data-a="delCat" data-id="'+esc(c.id)+'">retirer le rayon</button>':'')+'</span><details class="tdet"><summary class="small" style="font-weight:700;cursor:pointer">'+c.types.length+' catégories · voir, changer une image</summary><div class="row wrapx" style="gap:5px;margin-top:6px">'+c.types.map(t=>'<span class="tchip"><label title="Changer l\'image de '+esc(t)+'" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><img src="'+esc(tSrc(c,t))+'" alt="" loading="lazy" width="20" height="20" style="border-radius:5px;object-fit:cover">'+esc(t)+'<input type="file" accept="image/*" data-file="typephoto" data-id="'+esc(c.id)+'" data-t="'+esc(t)+'" hidden></label>'+(c.tph[t]?'<button type="button" data-a="rmTypePhoto" data-id="'+esc(c.id)+'" data-t="'+esc(t)+'" aria-label="Image d\'origine pour '+esc(t)+'" title="Image d\'origine">↺</button>':'')+(c.extra.includes(t)?'<button type="button" data-a="rmCatType" data-id="'+esc(c.id)+'" data-t="'+esc(t)+'" aria-label="Retirer '+esc(t)+'">×</button>':'')+'</span>').join('')+'</div></details><form class="row" data-f="catType" data-id="'+esc(c.id)+'" style="gap:6px"><input class="in" name="nom" required maxlength="40" placeholder="Nouveau type" aria-label="Nouveau type pour '+esc(c.nom)+'" style="height:38px"><button class="btn btn-w btn-s" type="submit">Ajouter</button></form></div></div>';}).join('')+'</div>'+
   '<form class="row" data-f="cat"><label class="lbl" style="flex:1"><span hidden>Nouveau rayon</span><input class="in" id="n-cat" name="nom" required placeholder="Nouveau rayon"></label><button class="btn btn-v btn-s" type="submit">Créer le rayon</button></form></section>'+
   '<section class="card stack"><h2 style="font-size:17px">Quartiers proposés</h2><p class="small muted" style="margin:0">Suggestions affichées quand un vendeur tape son quartier. Les villes de Côte d\'Ivoire sont déjà prêtes.</p><div class="row wrapx">'+(st.quartiers||[]).map(x=>'<span class="chip row" style="gap:6px;cursor:default">'+esc(x)+'<button type="button" data-a="delQ" data-id="'+esc(x)+'" aria-label="Retirer '+esc(x)+'" style="border:0;background:none;cursor:pointer;font-weight:800;color:var(--muted)">×</button></span>').join('')+'</div>'+
   '<form class="row" data-f="quartier"><label class="lbl" style="flex:1"><span hidden>Nouveau quartier</span><input class="in" id="n-q" name="nom" required placeholder="Nouveau quartier"></label><button class="btn btn-v btn-s" type="submit">Ajouter</button></form></section></div>';
@@ -1407,7 +1463,7 @@ function aNotif(){const st=S.settings,pub=st.vapid_public||'';
 /* ---------- NAV / RENDER ---------- */
 function nav(h){
   if(isAdmin()&&h==='vendeur')h='admin';
-  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
+  const base=h.startsWith('boutique-')||h.startsWith('produit-')||h.startsWith('rayon-')||h==='rayons'||h==='categories'||h==='compte'||h==='aide'||h==='reglement'||h.startsWith('chat-')||h==='discussions'||h==='favoris'||h==='verifier'?'accueil':h.startsWith('suivi-')||h==='commandes'?'panier':h;
   const it=(id,label,icon,extra)=>'<a href="#'+id+'" class="'+(base===id?'on':'')+'">'+ic(icon,22)+label+(extra||'')+'</a>';
   const c=cartCount();
   return '<nav class="nav" aria-label="Navigation">'+it('accueil','Accueil','home')+it('panier','Panier','bag',c?'<span class="cnt">'+c+'</span>':'')+(isAdmin()?it('admin','Admin','shield'):it('vendeur','Vendeur','user'))+'</nav>';
@@ -1423,6 +1479,7 @@ function render(keep){
   else if(h.startsWith('produit-'))html=vProduit(h.slice(8));
   else if(h.startsWith('rayon-'))html=vRayon(decodeURIComponent(h.slice(6)));
   else if(h==='rayons')html=vRayons();
+  else if(h==='categories')html=vCategories();
   else if(h.startsWith('chat-'))html=vChat(decodeURIComponent(h.slice(5)));
   else if(h==='discussions')html=vDiscussions();
   else if(h==='compte')html=vCompte();
@@ -1648,6 +1705,13 @@ const A={
   aSusp:t=>{const s=shopById(t.dataset.id);act(()=>q(sb.from('shops').update({statut:s.statut==='actif'?'suspendu':'actif'}).eq('id',s.id)),s.statut==='actif'?'Boutique suspendue':'Boutique réactivée');},
   delShop:t=>act(async()=>{await q(sb.from('shops').delete().eq('id',t.dataset.id));ui.adminShop=null;ui.confirm=null;},'Boutique supprimée'),
   rtype:t=>{ui.type=t.dataset.id||null;render(true);},
+  tall:t=>{ui.tall=t.dataset.id;render(true);},
+  goType:t=>{ui.type=t.dataset.t||null;const h='#rayon-'+encodeURIComponent(t.dataset.c);if(location.hash===h)render(true);else location.hash=h;},
+  tpick:t=>{const f=document.querySelector('form[data-f="produit"]');if(!f)return;const cid=t.dataset.c,tt=t.dataset.t;
+    const rb=f.querySelector('input[name="categorie"][value="'+cid+'"]');if(rb&&!rb.checked){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));rb.closest('.rayon').scrollIntoView({block:'nearest',inline:'center'});}
+    const ft=document.getElementById('f-type');if(ft){ft.innerHTML=typeOpts(cid,tt);ft.value=tt;}const qi=document.getElementById('f-tq');if(qi)qi.value='';tSync();
+    if(navigator.vibrate)try{navigator.vibrate(15);}catch(_){}},
+  rmTypePhoto:t=>{const c=(S.settings.categories||[]).find(k=>k&&k.id===t.dataset.id)||{};const o=Object.assign({},c.tphotos||{});delete o[t.dataset.t];act(()=>saveCat(t.dataset.id,{tphotos:o}),'Image d\'origine remise');},
   rmCatPhoto:t=>act(()=>saveCat(t.dataset.id,{photo:null}),'Photo d\'origine remise'),
   rmCatType:t=>{const c=(S.settings.categories||[]).find(x=>x&&x.id===t.dataset.id);if(!c)return;if(S.products.some(p=>p.categorie===c.id&&p.type===t.dataset.t)){toast('Des produits utilisent ce type');return;}act(()=>saveCat(c.id,{types:(c.types||[]).filter(x=>x!==t.dataset.t)}));},
   delCat:t=>{if(S.products.some(p=>p.categorie===t.dataset.id)){toast('Des produits utilisent cette catégorie');return;}act(()=>q(sb.from('settings').update({categories:S.settings.categories.filter(c=>c.id!==t.dataset.id)}).eq('id',1)));},
@@ -1680,11 +1744,13 @@ function refreshOrderLinks(){
     el.textContent=txt;const a=document.querySelector('a[data-a="order"][data-shop="'+sid+'"]');if(a)a.href='https://wa.me/'+waNum(s.whatsapp)+'?text='+encodeURIComponent(txt);
     const tg=document.querySelector('[data-a="orderTg"][data-shop="'+sid+'"]');if(tg)tg.dataset.text=txt;});}
 document.addEventListener('input',e=>{
+  if(e.target.id==='f-tq'){const el=document.getElementById('f-tpick');if(el)el.innerHTML=tpickHTML();return;}
   const ck=e.target.dataset&&e.target.dataset.client;if(ck){client[ck]=e.target.value;lsSet('gbairai-client',client);refreshOrderLinks();return;}
   if(e.target.dataset&&e.target.dataset.i2==='vdNum'){ui.vd=ui.vd||{type:'cni',num:''};ui.vd.num=e.target.value;return;}
   const k=e.target.dataset&&e.target.dataset.i;if(!k)return;ui[k]=e.target.value;
   if(k==='q'){document.getElementById('results').innerHTML=results();clearTimeout(stQT);stQT=setTimeout(()=>{const v=ui.q.trim().toLowerCase().slice(0,80);if(v.length>=2&&v!==stQ){stQ=v;st('recherche',{q:v,n:ui.qN||0});}},1500);}
   else if(k==='ctQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="ctQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
+  else if(k==='cq'){const el=document.getElementById('cat-res');if(el)el.innerHTML=catRes(ui.cq);}
   else if(k==='aideQ'){const pos=e.target.selectionStart;render(true);const el=document.querySelector('[data-i="aideQ"]');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
   else if(k==='aQ'){const pos=e.target.selectionStart;render(true);const el=document.getElementById('aq');if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(_){}}}
 });
@@ -1692,7 +1758,9 @@ let formCache=null;
 function keepForm(){const f=document.querySelector('form[data-f="produit"]');if(!f)return;formCache={};new FormData(f).forEach((v,k)=>formCache[k]=v);formCache.visible=f.querySelector('#f-vis').checked;}
 function restoreForm(){const f=document.querySelector('form[data-f="produit"]');if(!f||!formCache)return;Object.keys(formCache).forEach(k=>{const el=f.elements[k];if(!el)return;if(el.type==='checkbox')el.checked=formCache[k];else el.value=formCache[k];});formCache=null;}
 document.addEventListener('change',async e=>{
-  if(e.target.name==='categorie'&&e.target.type==='radio'&&e.target.closest('form[data-f="produit"]')){const t=document.getElementById('f-type');if(t)t.innerHTML=typeOpts(e.target.value,'');document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(e.target)));return;}
+  if(e.target.name==='categorie'&&e.target.type==='radio'&&e.target.closest('form[data-f="produit"]')){const t=document.getElementById('f-type');if(t)t.innerHTML=typeOpts(e.target.value,'');document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(e.target)));const qi=document.getElementById('f-tq');if(qi)qi.value='';tSync();return;}
+  if(e.target.id==='f-type'){tSync();return;}
+  if(e.target.dataset&&e.target.dataset.file==='typephoto'&&e.target.files[0]){const id=e.target.dataset.id,tt=e.target.dataset.t;try{const r=await resizePhoto(e.target.files[0],500);act(async()=>{const url=await uploadPhoto(r.blob);const c=(S.settings.categories||[]).find(k=>k&&k.id===id)||{};await saveCat(id,{tphotos:Object.assign({},c.tphotos||{},{[tt]:url})});},'Photo de la catégorie changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.file==='catphoto'&&e.target.files[0]){const id=e.target.dataset.id;try{const r=await resizePhoto(e.target.files[0],700);act(async()=>{const url=await uploadPhoto(r.blob);await saveCat(id,{photo:url});},'Photo du rayon changée');}catch(err){toast('Impossible de lire cette photo');}return;}
   if(e.target.dataset&&e.target.dataset.a2==='payDuree'){ui.pay.duree=+e.target.value;render(true);return;}
   if(e.target.dataset&&/^vd-(recto|selfie)$/.test(e.target.dataset.file||'')&&e.target.files[0]){const k=e.target.dataset.file.slice(3);try{const r=await resizePhoto(e.target.files[0],1400);ui.vd=ui.vd||{type:'cni',num:''};ui.vd[k]=r;render(true);}catch(err){toast('Impossible de lire cette photo');}return;}
@@ -1831,6 +1899,6 @@ const EYE_OFF='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" strok
 function addEyes(root){(root||document).querySelectorAll('input[type="password"]:not([data-eye])').forEach(i=>{i.setAttribute('data-eye','1');const w=document.createElement('span');w.className='pwbox';i.parentNode.insertBefore(w,i);w.appendChild(i);const b=document.createElement('button');b.type='button';b.className='pweye';b.setAttribute('aria-label','Afficher le mot de passe');b.innerHTML=EYE_ON;w.appendChild(b);});}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pweye');if(!b)return;e.preventDefault();e.stopPropagation();const i=b.parentNode.querySelector('input');const vis=i.type==='password';i.type=vis?'text':'password';b.innerHTML=vis?EYE_OFF:EYE_ON;b.setAttribute('aria-label',vis?'Cacher le mot de passe':'Afficher le mot de passe');b.classList.toggle('on',vis);},true);
 new MutationObserver(()=>addEyes()).observe(document.body,{childList:true,subtree:true});
-window.GB={S:S,shopById:shopById,prodById:prodById,askAlerts:askAlerts,ui:ui,A:A,FORMS:FORMS,render:render,esc:esc,toast:toast,sb:sb,q:q,safe:safe,act:act,myShop:myShop,shopProducts:shopProducts,addToCart:addToCart,photosOf:photosOf,place:place,waNum:waNum,uuid:uuid,copy:copy,lsGet:lsGet,lsSet:lsSet,catName:catName,CATS:CATS,villeOf:villeOf,avatar:avatar,tile:tile,pCard:pCard,resizePhoto:resizePhoto,uploadPhoto:uploadPhoto,keepForm:keepForm,restoreForm:restoreForm,F:F,fmtN:fmtN,prix:prix,ic:ic,back:back,isAdmin:isAdmin,verifBadge:verifBadge,presenceHTML:presenceHTML,geo:geo,loadAll:loadAll,errMsg:errMsg,getCart:()=>cart,getClient:()=>client,typeOpts:typeOpts,pushEnable:pushEnable,pushOK:pushOK,prixBase:prix_base,priceHTML:priceHTML,shopUrl:shopUrl,prodUrl:prodUrl,trackUrl:trackUrl,orderText:orderText,phoneEmail:phoneEmail,saveCart:saveCart};
+window.GB={S:S,shopById:shopById,prodById:prodById,askAlerts:askAlerts,ui:ui,A:A,FORMS:FORMS,render:render,esc:esc,toast:toast,sb:sb,q:q,safe:safe,act:act,myShop:myShop,shopProducts:shopProducts,addToCart:addToCart,photosOf:photosOf,place:place,waNum:waNum,uuid:uuid,copy:copy,lsGet:lsGet,lsSet:lsSet,catName:catName,CATS:CATS,villeOf:villeOf,avatar:avatar,tile:tile,pCard:pCard,resizePhoto:resizePhoto,uploadPhoto:uploadPhoto,keepForm:keepForm,restoreForm:restoreForm,F:F,fmtN:fmtN,prix:prix,ic:ic,back:back,isAdmin:isAdmin,verifBadge:verifBadge,presenceHTML:presenceHTML,geo:geo,loadAll:loadAll,errMsg:errMsg,getCart:()=>cart,getClient:()=>client,typeOpts:typeOpts,tSync:tSync,tBestType:tBestType,pushEnable:pushEnable,pushOK:pushOK,prixBase:prix_base,priceHTML:priceHTML,shopUrl:shopUrl,prodUrl:prodUrl,trackUrl:trackUrl,orderText:orderText,phoneEmail:phoneEmail,saveCart:saveCart};
 loadAll().then(()=>render());
 })();

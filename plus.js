@@ -83,8 +83,8 @@ function vPhoto(){
 function fill(r,opts){
   const f=document.querySelector('form[data-f="produit"]');if(!f||!r)return 0;let n=0;
   const set=(id,v,force)=>{const el=document.getElementById(id);if(el&&v!=null&&v!==''&&v!==0&&(force||!String(el.value).trim()||opts.force)){el.value=v;el.classList.add('voixok');n++;}};
-  if(r.categorie&&rayons().includes(r.categorie)){const rb=f.querySelector('input[name="categorie"][value="'+r.categorie+'"]');if(rb){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));const ft=document.getElementById('f-type');if(ft){ft.innerHTML=G().typeOpts(r.categorie,r.type||'');ft.value=r.type||'';}n++;}}
-  else{const ft=document.getElementById('f-type');if(ft&&r.type){ft.innerHTML=G().typeOpts((f.querySelector('input[name="categorie"]:checked')||{}).value,r.type);ft.value=r.type;}}
+  if(r.categorie&&rayons().includes(r.categorie)){const rb=f.querySelector('input[name="categorie"][value="'+r.categorie+'"]');if(rb){rb.checked=true;document.querySelectorAll('.rpick .rayon').forEach(l=>l.classList.toggle('on',l.contains(rb)));const ft=document.getElementById('f-type');if(ft){const bt=G().tBestType?G().tBestType(r.categorie,r.type||''):(r.type||'');ft.innerHTML=G().typeOpts(r.categorie,bt);ft.value=bt;if(G().tSync)G().tSync();}n++;}}
+  else{const ft=document.getElementById('f-type');if(ft&&r.type){const ci=(f.querySelector('input[name="categorie"]:checked')||{}).value,bt=G().tBestType?G().tBestType(ci,r.type):r.type;ft.innerHTML=G().typeOpts(ci,bt);ft.value=bt;if(G().tSync)G().tSync();}}
   set('f-nom',r.nom,true);set('f-desc',r.description);set('f-prix',r.prix||r.prix_conseille);set('f-stock',r.stock);set('f-tailles',r.tailles);
   return n;
 }
