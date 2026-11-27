@@ -3,8 +3,23 @@
 'use strict';
 const CFG=window.BOUTIK_CONFIG||{};
 const app=document.getElementById('app');
-if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){
+if(!CFG.supabaseUrl||!CFG.supabaseAnonKey){
   app.innerHTML='<div class="wrap"><div class="card stack"><h1 style="font-size:20px">Configuration manquante</h1><p class="muted" style="margin:0">Remplissez config.js avec le Project URL et la clé anon de Supabase.</p></div></div>';
+  return;
+}
+if(!window.supabase){
+  /* La bibliothèque Supabase n'a pas pu venir du premier serveur (réseau lent ou bloqué) : on essaie d'autres serveurs, puis on relance l'appli */
+  const SRC=['https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js','https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js','https://fastly.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'];
+  const n=window.__gbTry||0;
+  if(n<SRC.length){
+    window.__gbTry=n+1;
+    app.innerHTML='<div class="loading">Chargement…</div>';
+    const sc=document.createElement('script');sc.src=SRC[n];
+    sc.onload=sc.onerror=()=>{const r=document.createElement('script');r.src='app.js?r='+(n+1);document.body.appendChild(r);};
+    document.head.appendChild(sc);
+  }else{
+    app.innerHTML='<div class="wrap"><div class="card stack"><h1 style="font-size:20px">Connexion trop faible</h1><p class="muted" style="margin:0">Le site n\'a pas pu se charger complètement. Vérifiez votre connexion Internet, puis réessayez.</p><button type="button" class="btn btn-v btn-block" onclick="location.reload()">Réessayer</button></div></div>';
+  }
   return;
 }
 const sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
