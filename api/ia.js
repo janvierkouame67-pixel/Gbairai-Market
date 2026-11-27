@@ -1,4 +1,4 @@
-// Gbairai Market : l'intelligence artificielle (Claude, d'Anthropic) pour 5 services :
+// Gbairai Market : l'intelligence artificielle (Claude, d'Anthropic) pour ses services :
 //  - produit   : une photo → nom, rayon, description, prix conseillé (vendeur connecté)
 //  - vocal     : une phrase dite au micro (français, nouchi…) → fiche produit (vendeur connecté)
 //  - coach     : les chiffres de la boutique → conseils de la semaine (vendeur connecté)
@@ -6,6 +6,7 @@
 //  - traduire  : textes d'une fiche ou d'une discussion → autre langue
 //  - assistant : le vendeur IA 24 h/24 d'une boutique répond à un client (avec les vrais articles)
 //  - stock     : conseils de rachat à partir des ventes (vendeur connecté)
+//  - panne     : une photo de panne (fuite, prise brûlée…) → le bon artisan à appeler
 // Nécessite dans Vercel : ANTHROPIC_API_KEY (à mettre vous-même, ne l'envoyez à personne).
 // Sans cette clé, le site marche normalement et les boutons IA disent « IA pas encore activée ».
 const SDK = require('@anthropic-ai/sdk');
@@ -63,6 +64,18 @@ function tache(kind, b) {
         '(en minuscules, au singulier, sans accents superflus) qu\'un vendeur aurait écrits dans le nom ou la description de cet article ' +
         '(type d\'article, matière, couleur, style).' }],
       schema: obj({ resume: { type: 'string' }, categorie: { type: 'string', enum: listeRayons }, mots: { type: 'array', items: { type: 'string' } } }),
+    };
+  }
+  if (kind === 'panne') {
+    const img = imageBlock(b.image); if (!img) return null;
+    const metiers = (Array.isArray(b.metiers) ? b.metiers : []).slice(0, 40).map(r => str(r, 30)).filter(Boolean);
+    return {
+      content: [img, { type: 'text', text: CONTEXTE + 'Un habitant a photographié un problème chez lui ou sur son véhicule ' +
+        '(fuite d\'eau, prise brûlée, clim en panne, mur fissuré, serrure cassée, moto, téléphone…). ' +
+        'Dis en une phrase courte ce que tu vois, choisis le métier de l\'artisan à appeler dans la liste, ' +
+        'dis si c\'est urgent (danger : eau qui coule, fils électriques, odeur de gaz, fumée) ' +
+        'et donne un conseil de sécurité très court à faire en attendant (ou une chaîne vide). Ne donne pas de prix.' }],
+      schema: obj({ resume: { type: 'string' }, metier: { type: 'string', enum: metiers.length ? metiers : ['autre'] }, urgent: { type: 'boolean' }, conseil: { type: 'string' } }),
     };
   }
   if (kind === 'vocal') {
